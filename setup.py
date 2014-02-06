@@ -19,6 +19,7 @@ setup( name='cqrs',
     ],
     install_requires = [
         'django-denormalize',
+        'djangorestframework',
         'pymongo',
     ],
 )
