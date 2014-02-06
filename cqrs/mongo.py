@@ -12,13 +12,13 @@ from denormalize.models import DocumentCollection
 
 logger = logging.getLogger(__name__)
 
-
-REA_MODEL_DATA_COLLECTION_NAME = getattr(settings,
-    "REA_MODEL_DATA_COLLECTION_NAME", "model_data")
-REA_MONGO_DB_NAME = getattr(settings,
-    "REA_MONGO_DB_NAME", "rea_denormalized")
-REA_MONGO_CONNECTION_URI = getattr(settings,
-    "REA_MONGO_URI", "mongodb://localhost")
+# Settings
+CQRS_MODEL_DATA_COLLECTION_NAME = getattr(settings,
+    "CQRS_MODEL_DATA_COLLECTION_NAME", "model_data")
+CQRS_MONGO_DB_NAME = getattr(settings,
+    "CQRS_MONGO_DB_NAME", "cqrs_denormalized")
+CQRS_MONGO_CONNECTION_URI = getattr(settings,
+    "CQRS_MONGO_URI", "mongodb://localhost")
 
 
 def import_from_string(string):
@@ -40,7 +40,7 @@ class REAMongoBackend(MongoBackend):
         self.db = getattr(self.connection, self.db_name)
 
         # Remove all model data from mongo, to be replaced in _setup_listeners
-        self.db[REA_MODEL_DATA_COLLECTION_NAME].remove()
+        self.db[CQRS_MODEL_DATA_COLLECTION_NAME].remove()
 
 
     def get_parent_table_name(self, collection, table_name):
@@ -219,13 +219,13 @@ class REAMongoBackend(MongoBackend):
             current_collection = current_collection.parent_collection
 
         data['_collection'] = table_name
-        self.db[REA_MODEL_DATA_COLLECTION_NAME].insert(data)
+        self.db[CQRS_MODEL_DATA_COLLECTION_NAME].insert(data)
 
 
 mongodb = REAMongoBackend(
     name='mongo',
-    db_name=REA_MONGO_DB_NAME,
-    connection_uri=REA_MONGO_CONNECTION_URI
+    db_name=CQRS_MONGO_DB_NAME,
+    connection_uri=CQRS_MONGO_CONNECTION_URI
 )
 
 
