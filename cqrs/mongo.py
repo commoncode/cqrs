@@ -6,9 +6,10 @@ from bson.objectid import ObjectId
 
 from django.conf import settings
 from django.db.models.fields.related import ForeignRelatedObjectsDescriptor
+
 from denormalize.backend.mongodb import MongoBackend
 from denormalize.models import DocumentCollection
-
+from rest_framework import serializers
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ CQRS_MONGO_CONNECTION_URI = getattr(settings,
     "CQRS_MONGO_URI", "mongodb://localhost")
 
 
+# A handy function
 def import_from_string(string):
     mods = string.split('.')
     class_str = mods[-1]
@@ -29,7 +31,12 @@ def import_from_string(string):
     return getattr(module, class_str)
 
 
-class REAMongoBackend(MongoBackend):
+class CQRSSerializer(serializers.ModelSerializer):
+
+    mongoID = serializers.CharField(required=False)
+
+
+class CQRSMongoBackend(MongoBackend):
     db_name = "test_denormalize"
 
     def get_mongo_id(self, collection, doc_id):
@@ -186,7 +193,7 @@ class REAMongoBackend(MongoBackend):
         """
         Add a model type dictionary for our models
         """
-        super(REAMongoBackend, self)._setup_listeners(collection)
+        super(CQRSMongoBackend, self)._setup_listeners(collection)
 
         serializer_class = collection.serializer_class
         if isinstance(serializer_class, str):
@@ -222,7 +229,7 @@ class REAMongoBackend(MongoBackend):
         self.db[CQRS_MODEL_DATA_COLLECTION_NAME].insert(data)
 
 
-mongodb = REAMongoBackend(
+mongodb = CQRSMongoBackend(
     name='mongo',
     db_name=CQRS_MONGO_DB_NAME,
     connection_uri=CQRS_MONGO_CONNECTION_URI
