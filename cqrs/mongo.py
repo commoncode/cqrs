@@ -1,17 +1,23 @@
+import importlib
 import logging
 import pymongo
-import importlib
 
 from bson.objectid import ObjectId
 
 from django.conf import settings
+from django.db import models
 from django.db.models.fields.related import ForeignRelatedObjectsDescriptor
 
 from denormalize.backend.mongodb import MongoBackend
 from denormalize.models import DocumentCollection
 from rest_framework import serializers
+from polymorphic.polymorphic_model import PolymorphicModel
+
+from .noconflict import classmaker
+
 
 logger = logging.getLogger(__name__)
+
 
 # Settings
 CQRS_MODEL_DATA_COLLECTION_NAME = getattr(settings,
@@ -34,6 +40,26 @@ def import_from_string(string):
 class CQRSSerializer(serializers.ModelSerializer):
 
     mongoID = serializers.CharField(required=False)
+
+
+class CQRSPolymorphicModel(PolymorphicModel):
+    """
+    This model allows CQRSSerializer plugins to be effective by
+    assigning mongoID.
+
+    XXX in the case of a non-mongo architecture; this would need
+    to be optioned out.
+    """
+
+    mongoID = models.CharField(max_length=20)
+
+    def save(self, *args, **kwargs):
+        if not self.mongoID:
+            self.mongoID = str(ObjectId())
+        super(CQRSPolymorphicModel, self).save(*args, **kwargs)
+
+    class Meta:
+        abstract = True
 
 
 class CQRSMongoBackend(MongoBackend):
