@@ -42,7 +42,7 @@ class CQRSSerializer(serializers.ModelSerializer):
     mongoID = serializers.CharField(required=False)
 
 
-class CQRSPolymorphicModel(PolymorphicModel):
+class CQRSModelMixin(models.Model):
     """
     This model allows CQRSSerializer plugins to be effective by
     assigning mongoID.
@@ -53,17 +53,30 @@ class CQRSPolymorphicModel(PolymorphicModel):
 
     mongoID = models.CharField(max_length=20)
 
+    class Meta:
+        abstract = True
+
     def save(self, *args, **kwargs):
         if not self.mongoID:
             self.mongoID = str(ObjectId())
-        super(CQRSPolymorphicModel, self).save(*args, **kwargs)
+        super(CQRSModelMixin, self).save(*args, **kwargs)
+
+
+class CQRSModel(CQRSModelMixin):
 
     class Meta:
         abstract = True
 
 
+class CQRSPolymorphicModel(CQRSModelMixin, PolymorphicModel):
+    
+    class Meta:
+        abstract = True
+
+
 class CQRSMongoBackend(MongoBackend):
-    db_name = "test_denormalize"
+    
+    db_name = "test_denormalize" # ??
 
     def get_mongo_id(self, collection, doc_id):
         return collection.model.objects.get(id=doc_id).mongoID
@@ -123,6 +136,7 @@ class CQRSMongoBackend(MongoBackend):
             doc['_id'] = mongoID
             if not is_parent:
                 doc['_parent_table'] = parent_table_name
+
             col.update({'_id': mongoID}, doc, upsert=True)
 
             if not has_parent:
