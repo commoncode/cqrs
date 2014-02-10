@@ -79,7 +79,23 @@ class CQRSMongoBackend(MongoBackend):
     db_name = "test_denormalize" # ??
 
     def get_mongo_id(self, collection, doc_id):
-        return collection.model.objects.get(id=doc_id).mongoID
+        # Whilst the ORM as a connection to the RDBMs is the truer
+        # means to the canonical store of data, in the case of deleted
+        # records, this falls down.  In this case we can attempt to 
+        # find the document in the mongo store
+        try:
+            return collection.model.objects.get(id=doc_id).mongoID
+        except collection.model.DoesNotExist:
+            col = getattr(self.db, collection.name)
+            try:
+                return col.find_one({'id': doc_id})['_id']
+                # XXX we'll need to store the table_name on the data for this
+                # to work
+                return col.find_one({'id': doc_id,'table_name': collection.name})['_id']
+            except TypeError:
+                return None
+            # XXX try harder to find a record?
+
 
     def connect(self):
         self.connection = pymongo.Connection(self.connection_uri, safe=True)
@@ -96,7 +112,6 @@ class CQRSMongoBackend(MongoBackend):
         )
 
     def deleted(self, collection, doc_id):
-        mongoID = self.get_mongo_id(collection, doc_id)
         current_collection = collection
         while True:
             has_parent = False
@@ -109,7 +124,10 @@ class CQRSMongoBackend(MongoBackend):
 
             logging.debug('deleted: %s %s', current_collection.name, doc_id)
             col = getattr(self.db, current_collection.name)
-            col.remove({'_id': mongoID})
+
+            col.remove({
+                '_id': self.get_mongo_id(collection, doc_id)
+            })
 
             if not has_parent:
                 break
