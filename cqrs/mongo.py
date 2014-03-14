@@ -257,10 +257,10 @@ class CQRSMongoBackend(MongoBackend):
         if isinstance(serializer_class, str):
             serializer_class = import_from_string(serializer_class)
 
+
+
         serialized_fields = [
             x for x in collection.model._meta.fields
-            if x.name in serializer_class.Meta.fields
-
         ]
 
         names = [x.name for x in serialized_fields]

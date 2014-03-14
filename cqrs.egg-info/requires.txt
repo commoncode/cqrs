@@ -1,0 +1,3 @@
+django-denormalize
+djangorestframework
+pymongo
