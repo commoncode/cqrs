@@ -42,6 +42,25 @@ class CQRSSerializer(serializers.ModelSerializer):
     mongoID = serializers.CharField(required=False)
 
 
+class CQRSPolymorphicSerializer(CQRSSerializer):
+    '''
+    Serializer for Polymorphic Model
+    '''
+
+    def to_native(self, obj):
+        '''
+        Because OfferAspect is Polymorphic and don't know ahead of time
+        which downcast model we'll be dealing with
+        '''
+
+        class PolymorphicSerializer(serializers.ModelSerializer):
+            
+            class Meta:
+                model = obj.__class__
+
+        return PolymorphicSerializer(obj).to_native(obj)
+
+
 class CQRSModelMixin(models.Model):
     """
     This model allows CQRSSerializer plugins to be effective by
