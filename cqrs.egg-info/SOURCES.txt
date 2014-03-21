@@ -1,9 +1,0 @@
-README.rst
-cqrs/__init__.py
-cqrs/mongo.py
-cqrs.egg-info/PKG-INFO
-cqrs.egg-info/SOURCES.txt
-cqrs.egg-info/dependency_links.txt
-cqrs.egg-info/not-zip-safe
-cqrs.egg-info/requires.txt
-cqrs.egg-info/top_level.txt
