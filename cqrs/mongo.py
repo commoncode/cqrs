@@ -45,7 +45,7 @@ class CQRSPolymorphicSerializer(CQRSSerializer):
         '''
 
         class PolymorphicSerializer(serializers.ModelSerializer):
-            
+
             class Meta:
                 model = obj.__class__
 
@@ -79,19 +79,19 @@ class CQRSModel(CQRSModelMixin):
 
 
 class CQRSPolymorphicModel(CQRSModelMixin, PolymorphicModel):
-    
+
     class Meta:
         abstract = True
 
 
 class CQRSMongoBackend(MongoBackend):
-    
-    db_name = "test_denormalize" # ??
+
+    db_name = "test_denormalize"  # ??
 
     def get_mongo_id(self, collection, doc_id):
         # Whilst the ORM as a connection to the RDBMs is the truer
         # means to the canonical store of data, in the case of deleted
-        # records, this falls down.  In this case we can attempt to 
+        # records, this falls down.  In this case we can attempt to
         # find the document in the mongo store
         try:
             return collection.model.objects.get(id=doc_id).mongoID
@@ -101,11 +101,11 @@ class CQRSMongoBackend(MongoBackend):
                 return col.find_one({'id': doc_id})['_id']
                 # XXX we'll need to store the table_name on the data for this
                 # to work
-                return col.find_one({'id': doc_id,'table_name': collection.name})['_id']
+                return col.find_one({'id': doc_id,
+                                     'table_name': collection.name})['_id']
             except TypeError:
                 return None
             # XXX try harder to find a record?
-
 
     def connect(self):
         self.connection = pymongo.Connection(self.connection_uri, safe=True)
@@ -113,7 +113,6 @@ class CQRSMongoBackend(MongoBackend):
 
         # Remove all model data from mongo, to be replaced in _setup_listeners
         self.db[CQRS_MODEL_DATA_COLLECTION_NAME].remove()
-
 
     def get_parent_table_name(self, collection, table_name):
         return "%s__%s" % (
@@ -250,12 +249,10 @@ class CQRSMongoBackend(MongoBackend):
                             continue
                     col = None
 
-
     def get_doc(self, collection, doc_id):
         mongoID = self.get_mongo_id(collection, doc_id)
         col = getattr(self.db, collection.name)
         return col.find_one({'_id': mongoID})
-
 
     def _setup_listeners(self, collection):
         """
