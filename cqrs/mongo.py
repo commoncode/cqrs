@@ -1,4 +1,3 @@
-import importlib
 import logging
 import pymongo
 
@@ -7,6 +6,7 @@ from bson.objectid import ObjectId
 from django.conf import settings
 from django.db import models
 from django.db.models.fields.related import ForeignRelatedObjectsDescriptor
+from django.utils.module_loading import import_by_path
 
 from denormalize.backend.mongodb import MongoBackend
 from denormalize.models import DocumentCollection
@@ -26,15 +26,6 @@ CQRS_MONGO_DB_NAME = getattr(settings,
     "CQRS_MONGO_DB_NAME", "cqrs_denormalized")
 CQRS_MONGO_CONNECTION_URI = getattr(settings,
     "CQRS_MONGO_URI", "mongodb://localhost")
-
-
-# A handy function
-def import_from_string(string):
-    mods = string.split('.')
-    class_str = mods[-1]
-    path_str = '.'.join(mods[:-1])
-    module = importlib.import_module(path_str)
-    return getattr(module, class_str)
 
 
 class CQRSSerializer(serializers.ModelSerializer):
@@ -216,7 +207,7 @@ class CQRSMongoBackend(MongoBackend):
 
         # Get a list of reverse foreign keys our model could have
         if isinstance(serializer_class, str):
-            serializer_class = import_from_string(serializer_class)
+            serializer_class = import_by_path(serializer_class)
         reversed_f_keys = [
             attr for attr in model.__dict__.values()
             if isinstance(attr, ForeignRelatedObjectsDescriptor)
@@ -274,9 +265,7 @@ class CQRSMongoBackend(MongoBackend):
 
         serializer_class = collection.serializer_class
         if isinstance(serializer_class, str):
-            serializer_class = import_from_string(serializer_class)
-
-
+            serializer_class = import_by_path(serializer_class)
 
         serialized_fields = [
             x for x in collection.model._meta.fields
@@ -346,7 +335,7 @@ class DRFDocumentCollection(DocumentCollection):
         Use Django Rest Framework to serialize our object
         """
         if isinstance(self.serializer_class, str):
-            self.serializer_class = import_from_string(self.serializer_class)
+            self.serializer_class = import_by_path(self.serializer_class)
 
         data = self.serializer_class(obj).data
         logger.debug('\033[94m%s:\033[0m %s' % (model._meta.db_table, data))
