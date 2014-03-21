@@ -13,8 +13,6 @@ from denormalize.models import DocumentCollection
 from rest_framework import serializers
 from polymorphic.polymorphic_model import PolymorphicModel
 
-from .noconflict import classmaker
-
 
 logger = logging.getLogger(__name__)
 
