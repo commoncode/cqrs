@@ -11,18 +11,18 @@ The normal models and serizializers
 ===================================
 
 To take advantage of CQRS functionality, your models should extend
-:class:`~cqrs.mongo.CQRSModel` and your serializers
-:class:`~cqrs.mongo.CQRSSerializer`.
+:class:`~cqrs.models.CQRSModel` and your serializers
+:class:`~cqrs.serializers.CQRSSerializer`.
 
-:class:`~cqrs.mongo.CQRSModel` adds a ``mongoID`` field, which
-:class:`~cqrs.mongo.CQRSSerializer` also includes.
+:class:`~cqrs.models.CQRSModel` adds a ``mongoID`` field, which
+:class:`~cqrs.serializers.CQRSSerializer` also includes.
 
 If you have a polymorphic model, you should use
-:class:`~cqrs.mongo.CQRSPolymorphicModel` and
-:class:`~cqrs.mongo.CQRSPolymorphicSerializer` for your model and serializer
-bases, respectively. The former takes care of its being a django-polymorphic
-``PolymorphicModel`` and the latter takes care of creating and sustaining
-polymorphic serializers, which we're just about to talk about.
+:class:`~cqrs.models.CQRSPolymorphicModel` and
+:class:`~cqrs.serializers.CQRSPolymorphicSerializer` for your model and
+serializer bases, respectively. The former takes care of its being a
+django-polymorphic ``PolymorphicModel`` and the latter takes care of creating
+and sustaining polymorphic serializers, which we're just about to talk about.
 
 CQRS polymorphic serializers
 ============================
@@ -41,8 +41,8 @@ automatic serializer will be created instead, and if you then try to use your
 own, things will break.
 
 It is also important to note that ``to_native`` is the only method of
-:class:`~cqrs.mongo.CQRSPolymorphicSerializer` which is designed to use the
-appropriate serializer; other parts will not at present do so.
+:class:`~cqrs.serializers.CQRSPolymorphicSerializer` which is designed to use
+the appropriate serializer; other parts will not at present do so.
 
 For an example of usage, take a look at :mod:`cqrs.tests`.
 
@@ -206,12 +206,12 @@ Now on to the things to note:
 2. ``URLSerializer``'s bases are *changed* from
    ``(CQRSPolymorphicSerializer,)`` to ``(ProductSerializer,)`` (note also how
    ``EBookAutoCQRSSerializer`` has matching inheritance; had it been manually
-   specified with :class:`~cqrs.mongo.CQRSPolymorphicSerializer` as its only
-   base, it would also have had its bases changed).
+   specified with :class:`~cqrs.serializers.CQRSPolymorphicSerializer` as its
+   only base, it would also have had its bases changed).
 
-   This is only done if :class:`~cqrs.mongo.CQRSPolymorphicSerializer` is the
-   only base, or when a serializer is automatically derived. So remember to be
-   careful.
+   This is only done if :class:`~cqrs.serializers.CQRSPolymorphicSerializer` is
+   the only base, or when a serializer is automatically derived. So remember to
+   be careful.
 
 3. Manually specified fields are automatically added to ``Meta.fields``.
 

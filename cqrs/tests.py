@@ -1,7 +1,8 @@
 from django.db import models
 from django.test import TestCase
 from rest_framework.fields import CharField
-from .mongo import CQRSPolymorphicModel, CQRSPolymorphicSerializer
+from .models import CQRSPolymorphicModel
+from .serializers import CQRSPolymorphicSerializer, CQRSSerializerMeta
 
 
 class ModelA(CQRSPolymorphicModel):
@@ -65,7 +66,6 @@ class CQRSTestCase(TestCase):
         self.serializer = CQRSPolymorphicSerializer()
 
     def test_class_structures(self):
-        from .mongo import CQRSSerializerMeta
         a_s = CQRSSerializerMeta._register[ModelA]
         b_s = CQRSSerializerMeta._register[ModelB]
         c_s = CQRSSerializerMeta._register[ModelC]
