@@ -9,7 +9,7 @@ import weakref
 from django.core.exceptions import ImproperlyConfigured
 from django.utils import six
 from rest_framework import serializers
-from rest_framework.fields import Field
+from rest_framework.fields import Field, CharField
 
 from .mongo import CQRSModelMixin
 from .models import CQRSModel, CQRSPolymorphicModel
@@ -328,6 +328,8 @@ class CQRSPolymorphicSerializer(six.with_metaclass(CQRSSerializerMeta,
             # model is abstract and so parts of it are not set up.
             return
         super(CQRSSerializer, self).__init__(*args, **kwargs)
+
+    type = CharField(source='_type_path', read_only=True)
 
     class Meta:
         model = CQRSPolymorphicModel

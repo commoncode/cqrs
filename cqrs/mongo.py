@@ -273,6 +273,7 @@ class DRFDocumentCollection(DocumentCollection):
         Override the get_related_models to disable the function. This will
         be done with Django Rest Framework instead
         """
+
         return {}
 
     def dump_obj(self, model, obj, path):

@@ -1,7 +1,8 @@
 from django.db import models
 from django.test import TestCase
 from rest_framework.fields import CharField
-from .mongo import CQRSPolymorphicModel, CQRSPolymorphicSerializer
+from .models import CQRSPolymorphicModel
+from .serializers import CQRSPolymorphicSerializer, CQRSSerializerMeta
 
 
 class ModelA(CQRSPolymorphicModel):
@@ -65,7 +66,6 @@ class CQRSTestCase(TestCase):
         self.serializer = CQRSPolymorphicSerializer()
 
     def test_class_structures(self):
-        from .mongo import CQRSSerializerMeta
         a_s = CQRSSerializerMeta._register[ModelA]
         b_s = CQRSSerializerMeta._register[ModelB]
         c_s = CQRSSerializerMeta._register[ModelC]
@@ -87,7 +87,8 @@ class CQRSTestCase(TestCase):
         # Notable features: 'a2' is excluded, 'calc_a3
         a = ModelA.objects.create(field_a1='a', field_a2='A')
         self.assertEqual(self.serializer.to_native(a),
-                         {'id': a.id,
+                         {'type': 'cqrs.tests.ModelA',
+                          'id': a.id,
                           'mongoID': a.mongoID,
                           'field_a1': 'a',
                           'manual_a3': 'from calc_a3'})
@@ -95,7 +96,8 @@ class CQRSTestCase(TestCase):
     def test_b(self):
         b = ModelB.objects.create(field_b1='b', field_b2='B')
         self.assertEqual(self.serializer.to_native(b),
-                         {'id': b.id,
+                         {'type': 'cqrs.tests.ModelB',
+                          'id': b.id,
                           'mongoID': b.mongoID,
                           'field_b1': 'b',
                           'field_b2': 'B'})
@@ -105,7 +107,8 @@ class CQRSTestCase(TestCase):
                                   field_b1='b', field_b2='B',
                                   field_c1='c', field_c2='C')
         self.assertEqual(self.serializer.to_native(c),
-                         {'id': c.id,
+                         {'type': 'cqrs.tests.ModelC',
+                          'id': c.id,
                           'mongoID': c.mongoID,
                           'field_a1': 'a',
                           'manual_a3': 'from calc_a3',
@@ -119,7 +122,8 @@ class CQRSTestCase(TestCase):
                                   field_b1='b', field_b2='B',
                                   field_d1='d', field_d2='D')
         self.assertEqual(self.serializer.to_native(d),
-                         {'id': d.id,
+                         {'type': 'cqrs.tests.ModelD',
+                          'id': d.id,
                           'mongoID': d.mongoID,
                           'field_a1': 'a',
                           'manual_a3': 'from calc_a3',
