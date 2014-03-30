@@ -306,8 +306,6 @@ class CQRSSerializerMeta(serializers.SerializerMetaclass):
 
 class CQRSSerializer(serializers.ModelSerializer):
 
-    mongoID = serializers.CharField(required=False, max_length=20)
-
     class Meta:
         model = CQRSModel
         fields = 'id', 'mongoID'
