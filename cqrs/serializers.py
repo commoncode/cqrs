@@ -8,6 +8,7 @@ import weakref
 
 from django.core.exceptions import ImproperlyConfigured
 from django.utils import six
+from django.utils.module_loading import import_by_path
 from rest_framework import serializers
 from rest_framework.fields import Field, CharField
 
@@ -345,3 +346,40 @@ class CQRSPolymorphicSerializer(six.with_metaclass(CQRSSerializerMeta,
         # Otherwise, do this quick dodge where we effectively substitute self
         # for a different (more precise) serializer
         return CQRSSerializerMeta._register.instances[type(obj)].to_native(obj)
+
+    def from_native(self, data, files=None, polymorphism_resolved=False):
+        """
+        Deserialize primitives -> polymorphic objects.
+        """
+
+        print '{}.from_native({!r})'.format(type(self).__name__, locals())
+        if polymorphism_resolved:
+            # We've got the right serializer, so now we can continue normally.
+            return super(CQRSPolymorphicSerializer, self).from_native(data,
+                                                                      files)
+
+        # The ``type`` field is a magic one, because we need it to determine
+        # which *serializer* to use. It obviously can't be done with a regular
+        # field, and so it is marked read only and handled inside this method.
+
+        self._errors = {}
+
+        # If we can, retrieve the 'type' field, which is a model path.
+        if 'type' not in data:
+            self._errors['type'] = ['No polymorphic type provided.']
+            return
+
+        try:
+            model_class = import_by_path(data['type'])
+            # Now get the correct serializer for that model class.
+            serializer = CQRSSerializerMeta._register.instances[model_class]
+        except (ImproperlyConfigured, TypeError):
+            self._errors['type'] = ['Invalid type {!r}.'.format(data['type'])]
+            return
+
+        # It's OK to leave 'type' in; it'll just sit there unused.
+
+        # Now we can defer to that serializer's from_native. And tell ourselves
+        # that the polymorphism is resolved to make sure we don't recurse.
+        return serializer.from_native(data=data, files=files,
+                                      polymorphism_resolved=True)
