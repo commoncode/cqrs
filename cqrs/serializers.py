@@ -302,7 +302,6 @@ class CQRSPolymorphicSerializer(six.with_metaclass(CQRSSerializerMeta,
         Deserialize primitives -> polymorphic objects.
         """
 
-        print '{}.from_native({!r})'.format(type(self).__name__, locals())
         if polymorphism_resolved:
             # We've got the right serializer, so now we can continue normally.
             return super(CQRSPolymorphicSerializer, self).from_native(data,
