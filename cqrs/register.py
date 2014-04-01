@@ -13,7 +13,7 @@ import weakref
 
 from django.core.exceptions import ImproperlyConfigured
 
-from .models import CQRSModelMixin
+from .base import CQRSModelMixin
 
 
 class InstanceRegister(object):

@@ -10,7 +10,7 @@ from django.utils.module_loading import import_by_path
 from rest_framework import serializers
 from rest_framework.fields import Field, CharField
 
-from .mongo import CQRSModelMixin
+from .base import CQRSModelMixin
 from .models import CQRSModel, CQRSPolymorphicModel
 from .register import Register, RegisterableMeta
 

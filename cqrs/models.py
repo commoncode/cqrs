@@ -1,4 +1,4 @@
-from .mongo import CQRSModelMixin
+from .base import CQRSModelMixin
 from polymorphic.polymorphic_model import PolymorphicModel
 
 
