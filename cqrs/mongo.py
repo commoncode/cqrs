@@ -21,7 +21,7 @@ class CQRSModelMixin(models.Model):
     to be optioned out.
     '''
 
-    mongoID = models.CharField(max_length=20)
+    mongoID = models.CharField(max_length=24)
 
     class Meta:
         abstract = True

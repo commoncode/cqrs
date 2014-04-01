@@ -4,74 +4,127 @@ CQRS serializer bases.
 See :mod:`cqrs` docs for a full explanation.
 '''
 
-import weakref
-
 from django.core.exceptions import ImproperlyConfigured
 from django.utils import six
+from django.utils.module_loading import import_by_path
 from rest_framework import serializers
 from rest_framework.fields import Field, CharField
 
 from .mongo import CQRSModelMixin
 from .models import CQRSModel, CQRSPolymorphicModel
+from .register import Register, RegisterableMeta
 
 
-class SerializerInstanceRegister(object):
+class CQRSSerializerMeta(serializers.SerializerMetaclass, RegisterableMeta):
     """
-    A lazy dictionary-like register, indexed by model type and giving (shared)
-    serializer instances.
-    """
-
-    def __init__(self, type_register):
-        self._type_register = weakref.proxy(type_register)
-        self._instances = {}
-
-    def __getitem__(self, type_):
-        if type_ not in self._instances:
-            self._instances[type_] = self._type_register[type_]()
-        return self._instances[type_]
-
-
-class SerializerRegister(object):
-    """
-    A register of CQRS models and their serializers. Lazy and dictionary-like,
-    indexed by model type and giving serializer classes.
-
-    When you need instances, don't use ``self[model_class]()``; go for a little
-    more efficiency by sharing instances: ``self.instances[model_class]``.
+    Metaclass for CQRS serializers, taking care of registration and field
+    detection.
     """
 
-    def __init__(self):
-        self._register = {}
-        self.instances = SerializerInstanceRegister(self)
+    # _register = SerializerRegister(), defined at the end of the file (cyclic)
 
-    def __iter__(self):
-        return iter(self._register)
+    @property
+    def _model_for_registrar(self):
+        return getattr(self.Meta, 'model', None)
 
-    def __setitem__(self, model, serializer):
-        if model != serializer.Meta.model:
-            raise ValueError("{} is not a serializer for {}"
-                             .format(serializer, model))
-        if CQRSModelMixin not in model.__mro__:
-            # We're too good for duck typing here.
-            raise TypeError("Can't register {}.{}: its model {}.{} is not CQRS"
-                            .format(serializer.__module__, serializer.__name__,
-                                    model.__module__, model.__name__))
-        if model in self._register:
-            raise ImproperlyConfigured(
-                "There is already a CQRSSerializer for {}"
-                .format(serializer.Meta.model))
-        self._register[serializer.Meta.model] = serializer
+    def __new__(cls, name, bases, attrs):
+        # There are certain conveniences and invariants that we wish to hold
+        # for CQRS serializers.
+        #
+        # - Meta exists
+        if 'Meta' not in attrs:
+            attrs['Meta'] = type('Meta', (), {})
+        meta = attrs['Meta']
 
-    def __getitem__(self, model):
-        if CQRSModelMixin not in model.__mro__:
-            # We're too good for duck typing here.
-            raise TypeError("Model {}.{} is not CQRS, can't be in register"
-                            .format(model.__module__, model.__name__))
-        if model not in self._register:
-            self._register[model] = self.create_serializer_for(model)
-        return self._register[model]
+        # - The superclasses are correct. You know, I call quite a few things
+        #   in this code evil and magic; if I were asked to specify one as
+        #   being the most evil and underhanded, this would be it without a
+        #   doubt.
+        if 'CQRSPolymorphicSerializer' in globals() and \
+                bases == (CQRSPolymorphicSerializer,):
+            # See tests.DSerializer for an explanation of the purpose of this.
+            # Short version: so that manually specified fields get inherited
+            # properly.
+            bases = tuple(cls._register[base]
+                          for base in meta.model.__bases__
+                          if issubclass(base, CQRSPolymorphicModel)) or bases
 
-    def create_serializer_for(self, model_class):
+        # - Meta.excludes does not exist
+        if hasattr(meta, 'exclude'):
+            # It might be a little tricky, but it can be done. But better to be
+            # upfront about it than allow it to be broken.
+            raise NotImplementedError(
+                "CQRS polymorphic serializers can't cope with Meta.exclude "
+                "yet.\n(There's nothing fundamentally wrong with it, it's "
+                "just not implemented and will break the techniques in use.)\n"
+                "Please use Meta.fields instead. Sorry.")
+
+        # - Meta.fields exists and is a list
+        if not hasattr(meta, 'fields'):
+            meta.fields = []
+        elif not isinstance(meta.fields, list):
+            meta.fields = list(meta.fields)
+
+        # This, then, is the canonical list, to which we must add all fields
+        # (calculated or automatic) that must be included. Frankly, I don't
+        # know why DRF doesn't do most of this itself (for manually specified
+        # fields, at least), but it doesn't, so we must. And in a way that
+        # won't break if they do start doing it.
+        fields = meta.fields
+
+        def append_field(f):
+            # I know this is at least O(N). Yes, that is mildly bad.
+            if f not in fields:
+                fields.append(f)
+
+        def prepend_field(f):
+            # This one is *really* bad, probably O(N^2) or so.
+            if f not in fields:
+                fields.insert(0, f)
+
+        # - Meta.fields includes all the manually specified fields
+        for k, v in six.iteritems(attrs):
+            if isinstance(v, Field):
+                append_field(k)
+
+        # - Meta.fields includes all the super serializers' Meta.fields values
+
+        # Precondition: bases *must* have Meta.fields, prepopulated in the same
+        # way and including all their fields. (This can be reconsidered if
+        # necessary, e.g. if adding mixed CQRS + non-CQRS inheritance, but it
+        # simplifies things a little.)
+        # And just for a change, let's care about order. I don't know quite why
+        # I'm doing this, really...
+        for base in bases[::-1]:
+            for field in base.Meta.fields[::-1]:
+                prepend_field(field)
+
+        # So now we're in the happy situation where you can not worry about who
+        # you're inheriting from; all your bases' fields are belong to our
+        # Meta.fields, plus all manually specified fields :-)
+        # All subclasses will thus have field sets which are supersets of those
+        # of their parent classes. This is sound subclassing. You can now write
+        # a polymorphic serializer and only need to include the *new* fields.
+
+        return super(CQRSSerializerMeta, cls).__new__(cls, name, bases, attrs)
+
+
+class CQRSSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = CQRSModel
+        fields = 'id', 'mongoID'
+
+
+class SerializerRegister(Register):
+
+    value_type = CQRSSerializer
+
+    def is_valid_for(self, model, serializer):
+        return model is serializer.Meta.model or \
+            serializer is CQRSPolymorphicSerializer
+
+    def create_value_for(self, model_class):
         # Here we have the fun of constructing a serializer for a subclass.
         # Here are the things we need to do:
         #
@@ -206,111 +259,7 @@ class SerializerRegister(object):
                         .format(model_class.__name__)})
 
 
-class CQRSSerializerMeta(serializers.SerializerMetaclass):
-    """
-    Metaclass for CQRS serializers, taking care of registration and field
-    detection.
-    """
-    _register = SerializerRegister()
-
-    def __new__(cls, name, bases, attrs):
-        # There are certain conveniences and invariants that we wish to hold
-        # for CQRS serializers.
-        #
-        # - Meta exists
-        if 'Meta' not in attrs:
-            attrs['Meta'] = type('Meta', (), {})
-        meta = attrs['Meta']
-
-        # - The superclasses are correct. You know, I call quite a few things
-        #   in this code evil and magic; if I were asked to specify one as
-        #   being the most evil and underhanded, this would be it without a
-        #   doubt.
-        if 'CQRSPolymorphicSerializer' in globals() and \
-                bases == (CQRSPolymorphicSerializer,):
-            # See tests.DSerializer for an explanation of the purpose of this.
-            # Short version: so that manually specified fields get inherited
-            # properly.
-            bases = tuple(cls._register[base]
-                          for base in meta.model.__bases__
-                          if issubclass(base, CQRSPolymorphicModel)) or bases
-
-        # - Meta.excludes does not exist
-        if hasattr(meta, 'exclude'):
-            # It might be a little tricky, but it can be done. But better to be
-            # upfront about it than allow it to be broken.
-            raise NotImplementedError(
-                "CQRS polymorphic serializers can't cope with Meta.exclude "
-                "yet.\n(There's nothing fundamentally wrong with it, it's "
-                "just not implemented and will break the techniques in use.)\n"
-                "Please use Meta.fields instead. Sorry.")
-
-        # - Meta.fields exists and is a list
-        if not hasattr(meta, 'fields'):
-            meta.fields = []
-        elif not isinstance(meta.fields, list):
-            meta.fields = list(meta.fields)
-
-        # This, then, is the canonical list, to which we must add all fields
-        # (calculated or automatic) that must be included. Frankly, I don't
-        # know why DRF doesn't do most of this itself (for manually specified
-        # fields, at least), but it doesn't, so we must. And in a way that
-        # won't break if they do start doing it.
-        fields = meta.fields
-
-        def append_field(f):
-            # I know this is at least O(N). Yes, that is mildly bad.
-            if f not in fields:
-                fields.append(f)
-
-        def prepend_field(f):
-            # This one is *really* bad, probably O(N^2) or so.
-            if f not in fields:
-                fields.insert(0, f)
-
-        # - Meta.fields includes all the manually specified fields
-        for k, v in six.iteritems(attrs):
-            if isinstance(v, Field):
-                append_field(k)
-
-        # - Meta.fields includes all the super serializers' Meta.fields values
-
-        # Precondition: bases *must* have Meta.fields, prepopulated in the same
-        # way and including all their fields. (This can be reconsidered if
-        # necessary, e.g. if adding mixed CQRS + non-CQRS inheritance, but it
-        # simplifies things a little.)
-        # And just for a change, let's care about order. I don't know quite why
-        # I'm doing this, really...
-        for base in bases[::-1]:
-            for field in base.Meta.fields[::-1]:
-                prepend_field(field)
-
-        # So now we're in the happy situation where you can not worry about who
-        # you're inheriting from; all your bases' fields are belong to our
-        # Meta.fields, plus all manually specified fields :-)
-        # All subclasses will thus have field sets which are supersets of those
-        # of their parent classes. This is sound subclassing. You can now write
-        # a polymorphic serializer and only need to include the *new* fields.
-
-        return super(CQRSSerializerMeta, cls).__new__(cls, name, bases, attrs)
-
-    def __init__(self, *args, **kwargs):
-        super(CQRSSerializerMeta, self).__init__(*args, **kwargs)
-
-        # TODO: we probably need to check fields at this point.
-        # TODO: what about subclasses of the serializer?
-        model = getattr(self.Meta, 'model', None)
-        if model is not None:
-            CQRSSerializerMeta._register[model] = self
-
-
-class CQRSSerializer(serializers.ModelSerializer):
-
-    mongoID = serializers.CharField(required=False, max_length=20)
-
-    class Meta:
-        model = CQRSModel
-        fields = 'id', 'mongoID'
+CQRSSerializerMeta._register = SerializerRegister()
 
 
 class CQRSPolymorphicSerializer(six.with_metaclass(CQRSSerializerMeta,
@@ -347,3 +296,40 @@ class CQRSPolymorphicSerializer(six.with_metaclass(CQRSSerializerMeta,
         # Otherwise, do this quick dodge where we effectively substitute self
         # for a different (more precise) serializer
         return CQRSSerializerMeta._register.instances[type(obj)].to_native(obj)
+
+    def from_native(self, data, files=None, polymorphism_resolved=False):
+        """
+        Deserialize primitives -> polymorphic objects.
+        """
+
+        print '{}.from_native({!r})'.format(type(self).__name__, locals())
+        if polymorphism_resolved:
+            # We've got the right serializer, so now we can continue normally.
+            return super(CQRSPolymorphicSerializer, self).from_native(data,
+                                                                      files)
+
+        # The ``type`` field is a magic one, because we need it to determine
+        # which *serializer* to use. It obviously can't be done with a regular
+        # field, and so it is marked read only and handled inside this method.
+
+        self._errors = {}
+
+        # If we can, retrieve the 'type' field, which is a model path.
+        if 'type' not in data:
+            self._errors['type'] = ['No polymorphic type provided.']
+            return
+
+        try:
+            model_class = import_by_path(data['type'])
+            # Now get the correct serializer for that model class.
+            serializer = CQRSSerializerMeta._register.instances[model_class]
+        except (ImproperlyConfigured, TypeError):
+            self._errors['type'] = ['Invalid type {!r}.'.format(data['type'])]
+            return
+
+        # It's OK to leave 'type' in; it'll just sit there unused.
+
+        # Now we can defer to that serializer's from_native. And tell ourselves
+        # that the polymorphism is resolved to make sure we don't recurse.
+        return serializer.from_native(data=data, files=files,
+                                      polymorphism_resolved=True)
