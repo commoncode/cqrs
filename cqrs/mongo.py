@@ -3,83 +3,10 @@ import pymongo
 
 from bson.objectid import ObjectId
 
-from django.conf import settings
-from django.db import models
+from . import settings
 from django.db.models.fields.related import ForeignRelatedObjectsDescriptor
-from django.utils.module_loading import import_by_path
 
 from denormalize.backend.mongodb import MongoBackend
-from denormalize.models import DocumentCollection
-from rest_framework import serializers
-from polymorphic.polymorphic_model import PolymorphicModel
-
-
-logger = logging.getLogger(__name__)
-
-
-# Settings
-CQRS_MODEL_DATA_COLLECTION_NAME = getattr(settings,
-    "CQRS_MODEL_DATA_COLLECTION_NAME", "model_data")
-CQRS_MONGO_DB_NAME = getattr(settings,
-    "CQRS_MONGO_DB_NAME", "cqrs_denormalized")
-CQRS_MONGO_CONNECTION_URI = getattr(settings,
-    "CQRS_MONGO_URI", "mongodb://localhost")
-
-
-class CQRSSerializer(serializers.ModelSerializer):
-
-    mongoID = serializers.CharField(required=False)
-
-
-class CQRSPolymorphicSerializer(CQRSSerializer):
-    '''
-    Serializer for Polymorphic Model
-    '''
-
-    def to_native(self, obj):
-        '''
-        Because OfferAspect is Polymorphic and don't know ahead of time
-        which downcast model we'll be dealing with
-        '''
-
-        class PolymorphicSerializer(serializers.ModelSerializer):
-
-            class Meta:
-                model = obj.__class__
-
-        return PolymorphicSerializer(obj).to_native(obj)
-
-
-class CQRSModelMixin(models.Model):
-    """
-    This model allows CQRSSerializer plugins to be effective by
-    assigning mongoID.
-
-    XXX in the case of a non-mongo architecture; this would need
-    to be optioned out.
-    """
-
-    mongoID = models.CharField(max_length=20)
-
-    class Meta:
-        abstract = True
-
-    def save(self, *args, **kwargs):
-        if not self.mongoID:
-            self.mongoID = str(ObjectId())
-        super(CQRSModelMixin, self).save(*args, **kwargs)
-
-
-class CQRSModel(CQRSModelMixin):
-
-    class Meta:
-        abstract = True
-
-
-class CQRSPolymorphicModel(CQRSModelMixin, PolymorphicModel):
-
-    class Meta:
-        abstract = True
 
 
 class CQRSMongoBackend(MongoBackend):
@@ -110,7 +37,7 @@ class CQRSMongoBackend(MongoBackend):
         self.db = getattr(self.connection, self.db_name)
 
         # Remove all model data from mongo, to be replaced in _setup_listeners
-        self.db[CQRS_MODEL_DATA_COLLECTION_NAME].remove()
+        self.db[settings.CQRS_MODEL_DATA_COLLECTION_NAME].remove()
 
     def get_parent_table_name(self, collection, table_name):
         return "%s__%s" % (
@@ -198,13 +125,12 @@ class CQRSMongoBackend(MongoBackend):
 
         # WARNING: Code is evil (in this state)
         # ---------------------------------------------------
+        collection.concreteify_serializer_class()
         serializer_class = collection.serializer_class
         model = serializer_class.Meta.model
         model_instance = model.objects.get(id=doc_id)
 
         # Get a list of reverse foreign keys our model could have
-        if isinstance(serializer_class, str):
-            serializer_class = import_by_path(serializer_class)
         reversed_f_keys = [
             attr for attr in model.__dict__.values()
             if isinstance(attr, ForeignRelatedObjectsDescriptor)
@@ -258,9 +184,7 @@ class CQRSMongoBackend(MongoBackend):
         """
         super(CQRSMongoBackend, self)._setup_listeners(collection)
 
-        serializer_class = collection.serializer_class
-        if isinstance(serializer_class, str):
-            serializer_class = import_by_path(serializer_class)
+        collection.concreteify_serializer_class()
 
         serialized_fields = [
             x for x in collection.model._meta.fields
@@ -287,51 +211,11 @@ class CQRSMongoBackend(MongoBackend):
             current_collection = current_collection.parent_collection
 
         data['_collection'] = table_name
-        self.db[CQRS_MODEL_DATA_COLLECTION_NAME].insert(data)
+        self.db[settings.CQRS_MODEL_DATA_COLLECTION_NAME].insert(data)
 
 
 mongodb = CQRSMongoBackend(
     name='mongo',
-    db_name=CQRS_MONGO_DB_NAME,
-    connection_uri=CQRS_MONGO_CONNECTION_URI
+    db_name=settings.CQRS_MONGO_DB_NAME,
+    connection_uri=settings.CQRS_MONGO_CONNECTION_URI
 )
-
-
-class DRFDocumentCollection(DocumentCollection):
-    """
-    Overrides `DocumentCollection` to make use of the Django Rest Framework
-    serializer for serializing our objects. This provides more power in
-    what data we want to retrieve.
-
-    TODO: How to deal with stale foreign key data being cached in mongo?
-    """
-    serializer_class = None
-
-    # Parent DRFDocumentCollection (for saving child objects)
-    parent_collection = None
-
-    def __init__(self):
-        if self.serializer_class is None:
-            raise ValueError("serializer_class can not be None")
-        if self.model is None:
-            self.model = self.serializer_class.Meta.model
-        if not self.name:
-            self.name = self.model._meta.db_table
-
-    def get_related_models(self):
-        """
-        Override the get_related_models to disable the function. This will
-        be done with Django Rest Framework instead
-        """
-        return {}
-
-    def dump_obj(self, model, obj, path):
-        """
-        Use Django Rest Framework to serialize our object
-        """
-        if isinstance(self.serializer_class, str):
-            self.serializer_class = import_by_path(self.serializer_class)
-
-        data = self.serializer_class(obj).data
-        logger.debug('\033[94m%s:\033[0m %s' % (model._meta.db_table, data))
-        return data
