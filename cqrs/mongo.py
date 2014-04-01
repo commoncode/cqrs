@@ -13,13 +13,13 @@ from denormalize.models import DocumentCollection
 
 
 class CQRSModelMixin(models.Model):
-    """
+    '''
     This model allows CQRSSerializer plugins to be effective by
     assigning mongoID.
 
     XXX in the case of a non-mongo architecture; this would need
     to be optioned out.
-    """
+    '''
 
     mongoID = models.CharField(max_length=20)
 
@@ -203,9 +203,9 @@ class CQRSMongoBackend(MongoBackend):
         return col.find_one({'_id': mongoID})
 
     def _setup_listeners(self, collection):
-        """
+        '''
         Add a model type dictionary for our models
-        """
+        '''
         super(CQRSMongoBackend, self)._setup_listeners(collection)
 
         serializer_class = collection.serializer_class
@@ -248,13 +248,13 @@ mongodb = CQRSMongoBackend(
 
 
 class DRFDocumentCollection(DocumentCollection):
-    """
+    '''
     Overrides `DocumentCollection` to make use of the Django Rest Framework
     serializer for serializing our objects. This provides more power in
     what data we want to retrieve.
 
     TODO: How to deal with stale foreign key data being cached in mongo?
-    """
+    '''
     serializer_class = None
 
     # Parent DRFDocumentCollection (for saving child objects)
@@ -269,17 +269,29 @@ class DRFDocumentCollection(DocumentCollection):
             self.name = self.model._meta.db_table
 
     def get_related_models(self):
-        """
+        '''
         Override the get_related_models to disable the function. This will
         be done with Django Rest Framework instead
-        """
+        '''
 
-        return {}
+        # here we have the opportunity to try to listen to other
+        # related models
+        model_info = {} # super(DRFDocumentCollection, self).get_related_models()
+
+        for klass in self.model.__subclasses__():
+            info = {}
+            info['model'] = klass
+            # info['path'] = pathstring
+            info['m2m'] = False
+            info['direct'] = True
+            model_info[self.model.__name__.lower()] = info
+
+        return {} # model_info
 
     def dump_obj(self, model, obj, path):
-        """
+        '''
         Use Django Rest Framework to serialize our object
-        """
+        '''
         if isinstance(self.serializer_class, str):
             self.serializer_class = import_by_path(self.serializer_class)
 
