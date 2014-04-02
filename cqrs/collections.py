@@ -17,6 +17,13 @@ class DRFDocumentCollection(DocumentCollection):
     TODO: How to deal with stale foreign key data being cached in mongo?
     """
 
+    # A note on what needs to be overridden: pretty much only dump_obj and
+    # get_related_models. As examples of others: dump is OK (it does check
+    # isinstance(root_obj, self.model), but subclasses are good).
+    # dump_collection is based upon queryset() which uses the default manager,
+    # which is a polymorphic manager, so that works too. It's pleasant how most
+    # of the potential problems you might have actually aren't problems :-)
+
     @property
     def serializer_class(self):
         return CQRSSerializerMeta._register[self.model]

@@ -4,6 +4,8 @@ from django.forms.models import model_to_dict
 from rest_framework.fields import CharField
 from .models import CQRSPolymorphicModel
 from .serializers import CQRSPolymorphicSerializer, CQRSSerializerMeta
+from .collections import (DRFDocumentCollection,
+                          SubCollection, SubCollectionMeta)
 
 
 # Gener
@@ -197,7 +199,8 @@ def make_deserialize_test_method(model):
     return new_test_method
 
 
-class CQRSTestCase(TestCase):
+class PolymorphicSerializersTestCase(TestCase):
+
     def setUp(self):
         self.serializer = CQRSPolymorphicSerializer()
 
@@ -328,3 +331,74 @@ class CQRSTestCase(TestCase):
                                    'field_mm1', 'manual_mm3',
                                    'field_mmm1', 'manual_mmm3',
                                    })
+
+
+class ACollection(DRFDocumentCollection):
+    # Yeah, I know A was for automatic. But this one can't be automatic (it's
+    # the collection, only subcollections can be done automatically).
+    model = ModelA
+
+
+class MCollection(DRFDocumentCollection):
+    model = ModelM
+
+
+# Good morning (again).
+class AMSubCollection(SubCollection):
+    model = ModelAM
+
+
+class AMMSubCollection(SubCollection):
+    model = ModelAMM
+
+
+class MAMSubCollection(SubCollection):
+    model = ModelMAM
+
+
+def make_collection_test_method(model):
+    def new_test_method(self):
+        if model.prefix.startswith('a'):
+            collection = ACollection()
+        else:
+            collection = MCollection()
+        instance = model.create_test_instance()
+        self.assertEqual(collection.dump(instance),
+                         instance.as_test_serialized())
+
+    new_test_method.__name__ = 'test_' + model.prefix + '_dump'
+
+    return new_test_method
+
+
+class CollectionTests(TestCase):
+
+    for model in (ModelA, ModelAA, ModelAAA, ModelAAM, ModelAM, ModelAMA,
+                  ModelAMM, ModelM, ModelMA, ModelMAA, ModelMAM, ModelMM,
+                  ModelMMA, ModelMMM):
+        f = make_collection_test_method(model)
+        locals()[f.__name__] = f
+    del f
+
+    def test_class_structures(self):
+
+        c_am = SubCollectionMeta._register[ModelAM]
+        c_amm = SubCollectionMeta._register[ModelAMM]
+        c_mam = SubCollectionMeta._register[ModelMAM]
+        c_ma = SubCollectionMeta._register[ModelMA]
+        c_ama = SubCollectionMeta._register[ModelAMA]
+        c_aaa = SubCollectionMeta._register[ModelAAA]
+
+        self.assertIs(c_am, AMSubCollection)
+        self.assertIs(c_amm, AMMSubCollection)
+        self.assertIs(c_mam, MAMSubCollection)
+        self.assertEqual(c_ma.__name__, 'ModelMAAutoSubCollection')
+        self.assertEqual(c_ama.__name__, 'ModelAMAAutoSubCollection')
+        self.assertEqual(c_aaa.__name__, 'ModelAAAAutoSubCollection')
+
+    def test_bad_drf_document_collection_instantiation(self):
+        # The idea here is to show that yes, you do need to create a collection
+        # class; it's not like ``CQRSPolymorphicSerializer()``
+        with self.assertRaises(NotImplementedError) as r:
+            DRFDocumentCollection()
+        self.assertEqual(r.exception.message, 'Document.model not set')
