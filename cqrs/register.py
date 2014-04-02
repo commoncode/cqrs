@@ -72,7 +72,7 @@ class Register(object):
         if model in self._register:
             raise ImproperlyConfigured(
                 "There is already a {} for {}"
-                .format(self.value_type.__name__, value.Meta.model))
+                .format(self.value_type.__name__, model))
         self._register[model] = value
 
     def __getitem__(self, model):
