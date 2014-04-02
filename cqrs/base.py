@@ -21,5 +21,3 @@ class CQRSModelMixin(models.Model):
         if not self.mongoID:
             self.mongoID = str(ObjectId())
         super(CQRSModelMixin, self).save(*args, **kwargs)
-
-
