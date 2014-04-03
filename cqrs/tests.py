@@ -2,13 +2,16 @@ from django.db import models
 from django.test import TestCase
 from django.forms.models import model_to_dict
 from rest_framework.fields import CharField
-from .models import CQRSPolymorphicModel
+from .models import CQRSModel, CQRSPolymorphicModel
 from .serializers import CQRSPolymorphicSerializer, CQRSSerializerMeta
 from .collections import (DRFDocumentCollection,
+                          DRFPolymorphicDocumentCollection,
                           SubCollection, SubCollectionMeta)
 
 
-# Gener
+# TODO: at present pretty much all the tests are for polymorphic classes.
+# We need non-polymorphic tests.
+
 def make(prefix, base):
     '''
     Generate things.
@@ -333,13 +336,13 @@ class PolymorphicSerializersTestCase(TestCase):
                                    })
 
 
-class ACollection(DRFDocumentCollection):
+class ACollection(DRFPolymorphicDocumentCollection):
     # Yeah, I know A was for automatic. But this one can't be automatic (it's
     # the collection, only subcollections can be done automatically).
     model = ModelA
 
 
-class MCollection(DRFDocumentCollection):
+class MCollection(DRFPolymorphicDocumentCollection):
     model = ModelM
 
 
@@ -399,6 +402,32 @@ class CollectionTests(TestCase):
     def test_bad_drf_document_collection_instantiation(self):
         # The idea here is to show that yes, you do need to create a collection
         # class; it's not like ``CQRSPolymorphicSerializer()``
-        with self.assertRaises(NotImplementedError) as r:
-            DRFDocumentCollection()
-        self.assertEqual(r.exception.message, 'Document.model not set')
+        for cls in (DRFDocumentCollection, DRFPolymorphicDocumentCollection,
+                    SubCollection):
+            with self.assertRaises(NotImplementedError) as r:
+                cls()
+            self.assertEqual(r.exception.message, 'Document.model not set')
+
+    def test_non_polymorphic_collection_on_polymorphic_model(self):
+        class PollyWantAModel(CQRSPolymorphicModel):
+            pass
+
+        with self.assertRaises(TypeError) as r:
+            class PollyWantACollection(DRFDocumentCollection):
+                model = PollyWantAModel
+
+        self.assertEqual(r.exception.message,
+            "type 'PollyWantACollection' uses model 'PollyWantAModel' which "
+            "is derived from 'CQRSPolymorphicModel' (not a permitted base)")
+
+    def test_polymorphic_collection_on_non_polymorphic_model(self):
+        class UntitledModel(CQRSModel):
+            pass
+
+        with self.assertRaises(TypeError) as r:
+            class UntitledCollection(DRFPolymorphicDocumentCollection):
+                model = UntitledModel
+
+        self.assertEqual(r.exception.message,
+            "type 'UntitledCollection' uses model 'UntitledModel' which "
+            "is not derived from 'CQRSPolymorphicModel'")
