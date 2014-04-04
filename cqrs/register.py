@@ -97,11 +97,11 @@ class RegisterableMeta(type):
     See `SerializerRegisterMeta` for an example of the configuration that must
     be done.
     """
-    def __init__(self, *args, **kwargs):
-        super(RegisterableMeta, self).__init__(*args, **kwargs)
+    def __init__(cls, *args, **kwargs):
+        super(RegisterableMeta, cls).__init__(*args, **kwargs)
 
         # TODO: we probably need to check fields at this point.
         # TODO: what about subclasses of the serializer?
-        model = self._model_for_registrar
+        model = cls._model_for_registrar
         if model is not None:
-            type(self)._register[model] = self
+            type(cls)._register[model] = cls

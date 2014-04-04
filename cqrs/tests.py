@@ -70,8 +70,8 @@ def make(prefix, base):
         {
             'field_{}1'.format(prefix): models.CharField(max_length=50),
             'field_{}2'.format(prefix): models.CharField(max_length=50),
-            'calc_{}3'.format(prefix): lambda self: \
-                                       'from calc_{}3'.format(prefix),
+            'calc_{}3'.format(prefix):
+            lambda self: 'from calc_{}3'.format(prefix),
             'prefix': prefix,
             'test_data': test_data,
             'as_test_serialized': as_test_serialized,
@@ -116,8 +116,8 @@ def make_serializer(model):
         (CQRSPolymorphicSerializer,),
         {
             'manual_{}3'.format(model.prefix):
-                CharField(source='calc_{}3'.format(model.prefix),
-                          max_length=50, read_only=True),
+            CharField(source='calc_{}3'.format(model.prefix),
+                      max_length=50, read_only=True),
             'Meta': Meta,
             '__module__': __name__,
         })
@@ -126,27 +126,27 @@ def make_serializer(model):
 # Naming scheme: ending with 'A' means the serializer for that class is
 # automatic, and with 'M' means there is a manually specified serializer.
 # We'll go down to three levels; that should take care of everything.
-ModelA   = make('a',   CQRSPolymorphicModel)
-ModelAA  = make('aa',  ModelA)
+ModelA = make('a', CQRSPolymorphicModel)
+ModelAA = make('aa', ModelA)
 ModelAAA = make('aaa', ModelAA)
 ModelAAM = make('aam', ModelAA)
-ModelAM  = make('am',  ModelA)  # good morning
+ModelAM = make('am', ModelA)  # good morning
 ModelAMA = make('ama', ModelAM)
 ModelAMM = make('amm', ModelAM)
-ModelM   = make('m',   CQRSPolymorphicModel)
-ModelMA  = make('ma',  ModelM)
+ModelM = make('m', CQRSPolymorphicModel)
+ModelMA = make('ma', ModelM)
 ModelMAA = make('maa', ModelMA)
 ModelMAM = make('mam', ModelMA)
-ModelMM  = make('mm',  ModelM)
+ModelMM = make('mm', ModelM)
 ModelMMA = make('mma', ModelMM)
 ModelMMM = make('mmm', ModelMM)
 
 AAMSerializer = make_serializer(ModelAAM)
-AMSerializer  = make_serializer(ModelAM)
+AMSerializer = make_serializer(ModelAM)
 AMMSerializer = make_serializer(ModelAMM)
-MSerializer   = make_serializer(ModelM)
+MSerializer = make_serializer(ModelM)
 MAMSerializer = make_serializer(ModelMAM)
-MMSerializer  = make_serializer(ModelMM)
+MMSerializer = make_serializer(ModelMM)
 MMMSerializer = make_serializer(ModelMMM)
 
 
@@ -154,7 +154,7 @@ def make_serialize_test_method(model):
     def new_test_method(self):
         instance = model.create_test_instance()
         self.assertEqual(self.serializer.to_native(instance),
-                          instance.as_test_serialized())
+                         instance.as_test_serialized())
 
     new_test_method.__name__ = 'test_' + model.prefix + '_serialize'
 
@@ -222,18 +222,18 @@ class PolymorphicSerializersTestCase(TestCase):
                       ModelMMA, ModelMMM):
             pass
 
-        s_a   = CQRSSerializerMeta._register[ModelA]
-        s_aa  = CQRSSerializerMeta._register[ModelAA]
+        s_a = CQRSSerializerMeta._register[ModelA]
+        s_aa = CQRSSerializerMeta._register[ModelAA]
         s_aaa = CQRSSerializerMeta._register[ModelAAA]
         s_aam = CQRSSerializerMeta._register[ModelAAM]
-        s_am  = CQRSSerializerMeta._register[ModelAM]
+        s_am = CQRSSerializerMeta._register[ModelAM]
         s_ama = CQRSSerializerMeta._register[ModelAMA]
         s_amm = CQRSSerializerMeta._register[ModelAMM]
-        s_m   = CQRSSerializerMeta._register[ModelM]
-        s_ma  = CQRSSerializerMeta._register[ModelMA]
+        s_m = CQRSSerializerMeta._register[ModelM]
+        s_ma = CQRSSerializerMeta._register[ModelMA]
         s_maa = CQRSSerializerMeta._register[ModelMAA]
         s_mam = CQRSSerializerMeta._register[ModelMAM]
-        s_mm  = CQRSSerializerMeta._register[ModelMM]
+        s_mm = CQRSSerializerMeta._register[ModelMM]
         s_mma = CQRSSerializerMeta._register[ModelMMA]
         s_mmm = CQRSSerializerMeta._register[ModelMMM]
 
@@ -400,8 +400,8 @@ class CollectionTests(TestCase):
         self.assertEqual(c_aaa.__name__, 'ModelAAAAutoSubCollection')
 
     def test_collection_name(self):
-        self.assertEqual(ACollection().name,  'cqrs_modela')
-        self.assertEqual(MCollection().name,  'cqrs_modelm')
+        self.assertEqual(ACollection().name, 'cqrs_modela')
+        self.assertEqual(MCollection().name, 'cqrs_modelm')
 
     def test_subcollection_name_unimplemented(self):
         # Subcollections take their base collection's name, but only if it's
@@ -441,8 +441,9 @@ class CollectionTests(TestCase):
                 model = PollyWantAModel
 
         self.assertEqual(r.exception.message,
-            "type 'PollyWantACollection' uses model 'PollyWantAModel' which "
-            "is derived from 'CQRSPolymorphicModel' (not a permitted base)")
+                         "type 'PollyWantACollection' uses model "
+                         "'PollyWantAModel' which is derived from "
+                         "'CQRSPolymorphicModel' (not a permitted base)")
 
     def test_polymorphic_collection_on_non_polymorphic_model(self):
         class UntitledModel(CQRSModel):
@@ -453,5 +454,5 @@ class CollectionTests(TestCase):
                 model = UntitledModel
 
         self.assertEqual(r.exception.message,
-            "type 'UntitledCollection' uses model 'UntitledModel' which "
-            "is not derived from 'CQRSPolymorphicModel'")
+                         "type 'UntitledCollection' uses model 'UntitledModel'"
+                         " which is not derived from 'CQRSPolymorphicModel'")

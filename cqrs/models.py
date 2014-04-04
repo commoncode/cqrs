@@ -3,12 +3,14 @@ from polymorphic.polymorphic_model import PolymorphicModel
 
 
 class CQRSModel(CQRSModelMixin):
+    """A non-polymorphic CQRS model."""
 
     class Meta:
         abstract = True
 
 
 class CQRSPolymorphicModel(CQRSModelMixin, PolymorphicModel):
+    """A polymorphic CQRS model."""
 
     @property
     def _type_path(self):

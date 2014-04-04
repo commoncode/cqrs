@@ -2,6 +2,7 @@ from django.conf import settings
 from django.utils.importlib import import_module
 from django.utils.module_loading import module_has_submodule
 
+
 def autoload(submodules):
     """
     Automatically import the submodules for each app in INSTALLED_APPS.

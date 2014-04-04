@@ -28,37 +28,37 @@ class DRFDocumentCollectionMeta(type):
     :exc:`TypeError`, and the same for non-polymorphic collections.
     '''
 
-    def __init__(self, *args, **kwargs):
+    def __init__(cls, *args, **kwargs):
         # If CQRSModel and CQRSPolymorphicModel are refactored so that the
         # latter does not inherit from the former, then the concept of
         # _required_not_model_base could be removed completely.
 
         # These bases are permitted to have no model, but everything else must
         # have a model.
-        model_expected = self.model is not None or self.__name__ not in (
+        model_expected = cls.model is not None or cls.__name__ not in (
             'DRFDocumentCollectionBase', 'DRFDocumentCollection',
             'DRFPolymorphicDocumentCollection', 'SubCollection', 'NewBase')
 
         if model_expected:
-            if self.model is None:
+            if cls.model is None:
                 raise TypeError("{!r} has no model specified"
-                    .format(self.__name__))
-            if (getattr(self, '_required_not_model_base', None) is not None
-                and issubclass(self.model, self._required_not_model_base)):
+                                .format(cls.__name__))
+            if (getattr(cls, '_required_not_model_base', None) is not None
+                    and issubclass(cls.model, cls._required_not_model_base)):
                 raise TypeError(
                     'type {!r} uses model {!r} which is derived from {!r} '
                     '(not a permitted base)'.format(
-                        self.__name__, self.model.__name__,
-                        self._required_not_model_base.__name__))
+                        cls.__name__, cls.model.__name__,
+                        cls._required_not_model_base.__name__))
 
-            if (getattr(self, '_required_model_base', None) is not None
-                and not issubclass(self.model, self._required_model_base)):
+            if (getattr(cls, '_required_model_base', None) is not None
+                    and not issubclass(cls.model, cls._required_model_base)):
                 raise TypeError(
                     'type {!r} uses model {!r} which is not derived from {!r}'
-                    .format(self.__name__, self.model.__name__,
-                            self._required_model_base.__name__))
+                    .format(cls.__name__, cls.model.__name__,
+                            cls._required_model_base.__name__))
 
-        super(DRFDocumentCollectionMeta, self).__init__(*args, **kwargs)
+        super(DRFDocumentCollectionMeta, cls).__init__(*args, **kwargs)
 
 
 class DRFDocumentCollectionBase(six.with_metaclass(DRFDocumentCollectionMeta,
@@ -147,7 +147,7 @@ class DRFPolymorphicDocumentCollection(DRFDocumentCollectionBase):
         information).
         """
         model_info = super(DRFPolymorphicDocumentCollection,
-            self).get_related_models()
+                           self).get_related_models()
         for cls in self.model.__subclasses__():
             if cls._meta.abstract or cls._meta.proxy:
                 # We have no interest in abstract classes: the fields are
@@ -188,8 +188,8 @@ class SubCollectionMeta(DRFDocumentCollectionMeta, RegisterableMeta):
     # (defined at the end of the file as it's cyclic)
 
     @property
-    def _model_for_registrar(self):
-        return getattr(self, 'model', None)
+    def _model_for_registrar(cls):
+        return getattr(cls, 'model', None)
 
 
 class SubCollection(six.with_metaclass(SubCollectionMeta,
@@ -218,6 +218,16 @@ class SubCollection(six.with_metaclass(SubCollectionMeta,
 
     @property
     def name(self):
+        """
+        Get the name of the parent collection, if possible.
+
+        A subcollection has no identity of its own; its items should go in the
+        parent collection; hence the sharing of name. Note all the same that
+        subcollections should *not* be registered in the django-denormalize
+        backend (and can't, because of the perceived name collision).
+
+        :raises NotImplementedError: if ``self.base_collection`` is not defined
+        """
         # XXX: I'm not at all sure this will be called, as we won't be
         # registering the subcollections (and in fact we couldn't register the
         # subcollections, because django-denormalize would complain of a
@@ -238,18 +248,28 @@ class SubCollection(six.with_metaclass(SubCollectionMeta,
         # present, I don't *think* that the subcollection's name will be
         # needed, so I left this stub.
         raise NotImplementedError("This {!r} does not have a name as it "
-                                    "doesn't know its base collection"
-                                    .format(type(self).__name__))
+                                  "doesn't know its base collection"
+                                  .format(type(self).__name__))
 
     _required_model_base = CQRSPolymorphicModel
     _required_not_model_base = None
 
 
 class SubCollectionRegister(Register):
+    """
+    A registry of subcollections.
+
+    Please, please remember with this that unlike the serializers, where
+    everything is registered, with this only the *subcollections* are
+    to be registered here. The root collections are *not* registered here; they
+    get registered in a different way (and manually, at that) in the
+    django-denormalize backend.
+    """
 
     value_type = SubCollection
 
-    def is_valid_for(self, model_class, subcollection_class):
+    @staticmethod
+    def is_valid_for(model_class, subcollection_class):
         return model_class is subcollection_class.model
 
     def create_value_for(self, model_class):
