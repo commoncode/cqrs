@@ -399,6 +399,30 @@ class CollectionTests(TestCase):
         self.assertEqual(c_ama.__name__, 'ModelAMAAutoSubCollection')
         self.assertEqual(c_aaa.__name__, 'ModelAAAAutoSubCollection')
 
+    def test_collection_name(self):
+        self.assertEqual(ACollection().name,  'cqrs_modela')
+        self.assertEqual(MCollection().name,  'cqrs_modelm')
+
+    def test_subcollection_name_unimplemented(self):
+        # Subcollections take their base collection's name, but only if it's
+        # specified manually, for the moment.
+        subcollection = SubCollectionMeta._register[ModelAAA]()
+        with self.assertRaises(NotImplementedError):
+            # This test is in so that if it is actually implemented you'll go
+            # writing tests for it.
+            subcollection.name
+
+    def test_subcollection_name_from_base_collection(self):
+        subcollection = SubCollectionMeta._register[ModelAAA]()
+        # Not sure whether this should be a class or an instance, really, but
+        # because we're using property at present it needs to be an instance.
+        # Of course, you can make a classproperty with descriptors, but this is
+        # stuff that I don't know whether it's needed anyway, so I'm not going
+        # overboard with implementing complex things; I'm only going overboard
+        # in writing all these crazy comments.
+        subcollection.base_collection = ACollection()
+        self.assertEqual(subcollection.name, 'cqrs_modela')
+
     def test_bad_drf_document_collection_instantiation(self):
         # The idea here is to show that yes, you do need to create a collection
         # class; it's not like ``CQRSPolymorphicSerializer()``

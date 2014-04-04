@@ -1,3 +1,5 @@
+import weakref
+
 from django.utils.module_loading import import_by_path
 from django.utils import six
 
@@ -173,6 +175,7 @@ class DRFPolymorphicDocumentCollection(DRFDocumentCollectionBase):
             return self.serializer_class(obj).data
 
         subcollection = SubCollectionMeta._register.instances[type(obj)]
+        subcollection.base_collection = weakref.proxy(self)
         return subcollection.dump_obj(model, obj, path)
 
 
@@ -202,6 +205,41 @@ class SubCollection(six.with_metaclass(SubCollectionMeta,
     to the polymorphic collection, but may not work correctly. We haven't tried
     them at all. So be careful.
     """
+
+    def __init__(self):
+        if self.model is None:
+            raise NotImplementedError('Document.model not set')
+        # Super also has this, which we must explicitly remove::
+        #
+        #     if not self.name:
+        #         self.name = self.model._meta.db_table
+        #
+        # This is also why we're not calling super.__init__().
+
+    @property
+    def name(self):
+        # XXX: I'm not at all sure this will be called, as we won't be
+        # registering the subcollections (and in fact we couldn't register the
+        # subcollections, because django-denormalize would complain of a
+        # duplicated collection name).
+
+        # The subcollection is stored in the collection of its base model.
+        # Remember that the base model does not get a subcollection, but rather
+        # a collection, so we genuinely can't access the base collection from
+        # here, because at present we are not registering non-sub collections.
+        if hasattr(self, 'base_collection'):
+            return self.base_collection.name
+
+        # Yes, this can be fixed without too much difficulty by starting to
+        # register collections and looking up self.model.__mro__ to find the
+        # last concrete subclass of CQRSPolymorphicModel, which is the base
+        # model, and fetching its registered collection. Or you could scan
+        # ``DRFPolymorphicDocumentCollection.__subclasses__()``! But at
+        # present, I don't *think* that the subcollection's name will be
+        # needed, so I left this stub.
+        raise NotImplementedError("This {!r} does not have a name as it "
+                                    "doesn't know its base collection"
+                                    .format(type(self).__name__))
 
     _required_model_base = CQRSPolymorphicModel
     _required_not_model_base = None
