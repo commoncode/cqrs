@@ -13,7 +13,7 @@ import weakref
 
 from django.core.exceptions import ImproperlyConfigured
 
-from .base import CQRSModelMixin
+from .models import CQRSModel
 
 
 class InstanceRegister(object):
@@ -64,7 +64,7 @@ class Register(object):
             raise ValueError("{} is not a {} for {}"
                              .format(value, self.value_type.__name__, model))
 
-        if CQRSModelMixin not in model.__mro__:
+        if CQRSModel not in model.__mro__:
             # We're too good for duck typing here.
             raise TypeError("Can't register {}.{}: its model {}.{} is not CQRS"
                             .format(value.__module__, value.__name__,
@@ -76,7 +76,7 @@ class Register(object):
         self._register[model] = value
 
     def __getitem__(self, model):
-        if CQRSModelMixin not in model.__mro__:
+        if CQRSModel not in model.__mro__:
             # We're too good for duck typing here.
             raise TypeError("Model {}.{} is not CQRS, can't be in register"
                             .format(model.__module__, model.__name__))

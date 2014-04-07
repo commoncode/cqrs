@@ -45,7 +45,6 @@ def make(prefix, base):
                 fields['field_{}2'.format(base.prefix)] = base.prefix.upper()
         if model_instance:
             fields['id'] = model_instance.id
-            fields['mongoID'] = model_instance.mongoID
             fields['type'] = '{}.{}'.format(type(model_instance).__module__,
                                             type(model_instance).__name__)
         return fields

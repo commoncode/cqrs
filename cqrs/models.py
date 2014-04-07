@@ -1,15 +1,15 @@
-from .base import CQRSModelMixin
+from django.db import models
 from polymorphic.polymorphic_model import PolymorphicModel
 
 
-class CQRSModel(CQRSModelMixin):
+class CQRSModel(models.Model):
     """A non-polymorphic CQRS model."""
 
     class Meta:
         abstract = True
 
 
-class CQRSPolymorphicModel(CQRSModelMixin, PolymorphicModel):
+class CQRSPolymorphicModel(CQRSModel, PolymorphicModel):
     """A polymorphic CQRS model."""
 
     @property

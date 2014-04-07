@@ -10,7 +10,6 @@ from django.utils.module_loading import import_by_path
 from rest_framework import serializers
 from rest_framework.fields import Field, CharField
 
-from .base import CQRSModelMixin
 from .models import CQRSModel, CQRSPolymorphicModel
 from .register import Register, RegisterableMeta
 
@@ -113,7 +112,7 @@ class CQRSSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CQRSModel
-        fields = 'id', 'mongoID'
+        fields = 'id',
 
 
 class SerializerRegister(Register):
@@ -146,9 +145,9 @@ class SerializerRegister(Register):
         # serializers also.
         model_bases = model_class.__bases__
 
-        is_root = model_class is CQRSModelMixin
+        is_root = model_class is CQRSModel
 
-        if not is_root and not all(issubclass(b, CQRSModelMixin)
+        if not is_root and not all(issubclass(b, CQRSModel)
                                    for b in model_bases):
             # There's nothing fundamentally wrong with this case, but it's
             # simpler to deny its existence for the moment. When it turns out
@@ -156,7 +155,7 @@ class SerializerRegister(Register):
             raise NotImplementedError(
                 "Sorry, {!r} has a mix of CQRS and non-CQRS bases and we can't"
                 " cope with that yet. "
-                "(Hint: all bases should derive from CQRSModelMixin.)"
+                "(Hint: all bases should derive from CQRSModel.)"
                 .format(model_class.__name__))
 
         # As far as I care at present, if it's the root it has no base classes
@@ -238,7 +237,7 @@ class SerializerRegister(Register):
         for base in model_class.__bases__:
             # I know I said we don't cope with the mixed support issue, but
             # here it's easy to demonstrate what will need to be done...
-            if issubclass(base, CQRSModelMixin):
+            if issubclass(base, CQRSModel):
                 # Any fields that were present in a base CQRS class, we
                 # naturally don't want to add.
                 fields_to_add -= set(base._meta.get_all_field_names())

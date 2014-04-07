@@ -133,7 +133,7 @@ class PolymorphicSerializersTestCase(TestCase):
         self.assertEqual(s_mma.Meta.__bases__, (s_mm.Meta, object))
         self.assertEqual(s_mmm.Meta.__bases__, ())
 
-        common = {'type', 'id', 'mongoID'}
+        common = {'type', 'id'}
         self.assertEqual(set(s_a.Meta.fields),
                          common | {'field_a1', 'field_a2',
                                    })
