@@ -4,12 +4,13 @@ import pymongo
 from bson.objectid import ObjectId
 
 from . import settings
+from .backend import PolymorphicBackendBase
 from django.db.models.fields.related import ForeignRelatedObjectsDescriptor
 
 from denormalize.backend.mongodb import MongoBackend
 
 
-class CQRSMongoBackend(MongoBackend):
+class CQRSMongoBackend(MongoBackend, PolymorphicBackendBase):
 
     db_name = "test_denormalize"  # ??
 

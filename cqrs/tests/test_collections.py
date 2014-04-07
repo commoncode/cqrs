@@ -8,11 +8,9 @@ from ..collections import (DRFPolymorphicDocumentCollection,
 from .models import (ModelA, ModelAA, ModelAAA, ModelAAM, ModelAM, ModelAMA,
                      ModelAMM, ModelM, ModelMA, ModelMAA, ModelMAM, ModelMM,
                      ModelMMA, ModelMMM)
-#from .serializers import (AAMSerializer, AMSerializer, AMMSerializer,
-#                          MSerializer, MAMSerializer, MMSerializer,
-#                          MMMSerializer)
 from .collections import (ACollection, MCollection, AMSubCollection,
                           AMMSubCollection, MAMSubCollection)
+from .backend import OpLogBackend, Action, ADD, DELETE, CHANGE
 
 
 def make_collection_test_method(model):
@@ -30,7 +28,8 @@ def make_collection_test_method(model):
     return new_test_method
 
 
-class CollectionTests(TestCase):
+class JustCollectionTests(TestCase):
+    '''Tests for Collections in the absense of a backend.'''
 
     for model in (ModelA, ModelAA, ModelAAA, ModelAAM, ModelAM, ModelAMA,
                   ModelAMM, ModelM, ModelMA, ModelMAA, ModelMAM, ModelMM,
@@ -112,3 +111,92 @@ class CollectionTests(TestCase):
         self.assertEqual(r.exception.message,
                          "type 'UntitledCollection' uses model 'UntitledModel'"
                          " which is not derived from 'CQRSPolymorphicModel'")
+
+
+def make_test_method(model, name=None):
+    def new_test_method(self):
+        if model.prefix.startswith('m'):
+            collection = self.m_collection
+        else:
+            collection = self.a_collection
+
+        field_base = 'field_{}1'.format(model.prefix[0])
+        field_sub = 'field_{}1'.format(model.prefix)
+
+        # Test creation
+        obj = model.create_test_instance()
+        doc = obj.as_test_serialized()
+        self.assertEqual(self.backend.flush_oplog(),
+                        [Action(action=ADD, collection=collection,
+                                doc_id=obj.id, doc=doc)])
+
+        # Test changing a *parent* [except it's not for the bases] attribute
+        setattr(obj, field_base, 'changed')
+        doc[field_base] = 'changed'
+        obj.save()
+        self.assertEqual(self.backend.flush_oplog(),
+                        [Action(action=CHANGE, collection=collection,
+                                doc_id=obj.id, doc=doc)])
+
+        # Test changing *my* attribute
+        setattr(obj, field_sub, 'changed')
+        doc[field_sub] = 'changed'
+        obj.save()
+        self.assertEqual(self.backend.flush_oplog(),
+                        [Action(action=CHANGE, collection=collection,
+                                doc_id=obj.id, doc=doc)])
+
+        # Test changing both (to ensure the signal is only triggered once)
+        setattr(obj, field_base, 'new value')
+        doc[field_base] = 'new value'
+        setattr(obj, field_sub, 'new value')
+        doc[field_sub] = 'new value'
+        obj.save()
+        self.assertEqual(self.backend.flush_oplog(),
+                        [Action(action=CHANGE, collection=collection,
+                                doc_id=obj.id, doc=doc)])
+
+        # Test deletion
+        doc_id = obj.id
+        obj.delete()
+        self.assertEqual(self.backend.flush_oplog(),
+                        [Action(action=DELETE, collection=collection,
+                                doc_id=doc_id, doc=None)])
+
+    if name is None:
+        new_test_method.__name__ = 'test_model{}_signals'.format(model.prefix)
+    else:
+        new_test_method.__name__ = name
+
+    return new_test_method
+
+class CollectionAndBackendTests(TestCase):
+    """Tests for collections and how they interact with a backend."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.backend = OpLogBackend(name='collection_and_backend_tests')
+        cls.a_collection = ACollection()
+        cls.m_collection = MCollection()
+        cls.backend.register(cls.a_collection)
+        cls.backend.register(cls.m_collection)
+
+    def setUp(self):
+        # Ensure we have a clean oplog for each test.
+        self.backend.flush_oplog()
+
+    def tearDown(self):
+        # There should not be anything in the oplog at the end of a test.
+        self.assertEqual(self.backend.flush_oplog(), [])
+
+    for model, name in (
+            (ModelA, 'test_base_polymorphic_model_with_automatic_serializer'),
+            (ModelM, 'test_base_polymorphic_model_with_manual_serializer')):
+        f = make_test_method(model, name)
+        locals()[f.__name__] = f
+
+    for model in (ModelA, ModelAA, ModelAAA, ModelAAM, ModelAM, ModelAMA,
+                  ModelAMM, ModelM, ModelMA, ModelMAA, ModelMAM, ModelMM,
+                  ModelMMA, ModelMMM):
+        f = make_test_method(model)
+        locals()[f.__name__] = f
