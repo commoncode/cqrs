@@ -7,9 +7,12 @@ from ..collections import (DRFPolymorphicDocumentCollection,
 
 from .models import (ModelA, ModelAA, ModelAAA, ModelAAM, ModelAM, ModelAMA,
                      ModelAMM, ModelM, ModelMA, ModelMAA, ModelMAM, ModelMM,
-                     ModelMMA, ModelMMM)
+                     ModelMMA, ModelMMM, BoringModel, OneMixingBowl,
+                     AnotherMixingBowl, AutomaticMixer)
 from .collections import (ACollection, MCollection, AMSubCollection,
-                          AMMSubCollection, MAMSubCollection)
+                          AMMSubCollection, MAMSubCollection, BoringCollection,
+                          OneMixingBowlCollection, AnotherMixingBowlCollection,
+                          AutomaticMixerCollection)
 from .backend import OpLogBackend, Action, ADD, DELETE, CHANGE
 
 
@@ -178,8 +181,16 @@ class CollectionAndBackendTests(TestCase):
         cls.backend = OpLogBackend(name='collection_and_backend_tests')
         cls.a_collection = ACollection()
         cls.m_collection = MCollection()
+        cls.boring_collection = BoringCollection()
+        cls.one_mixing_bowl_collection = OneMixingBowlCollection()
+        cls.another_mixing_bowl_collection = AnotherMixingBowlCollection()
+        cls.automatic_mixer_collection = AutomaticMixerCollection()
         cls.backend.register(cls.a_collection)
         cls.backend.register(cls.m_collection)
+        cls.backend.register(cls.boring_collection)
+        cls.backend.register(cls.one_mixing_bowl_collection)
+        cls.backend.register(cls.another_mixing_bowl_collection)
+        cls.backend.register(cls.automatic_mixer_collection)
 
     def setUp(self):
         # Ensure we have a clean oplog for each test.
@@ -200,3 +211,47 @@ class CollectionAndBackendTests(TestCase):
                   ModelMMA, ModelMMM):
         f = make_test_method(model)
         locals()[f.__name__] = f
+
+    def do_test_on_thingies(self, collection, model, update_function):
+        # Test creation
+        obj = model.create_test_instance()
+        doc = obj.as_test_serialized()
+        self.assertEqual(self.backend.flush_oplog(),
+                        [Action(action=ADD, collection=collection,
+                                doc_id=obj.id, doc=doc)])
+
+        # Test changing an attribute
+        update_function(obj, doc)
+        obj.save()
+        self.assertEqual(self.backend.flush_oplog(),
+                        [Action(action=CHANGE, collection=collection,
+                                doc_id=obj.id, doc=doc)])
+
+        # Test deletion
+        doc_id = obj.id
+        obj.delete()
+        self.assertEqual(self.backend.flush_oplog(),
+                        [Action(action=DELETE, collection=collection,
+                                doc_id=doc_id, doc=None)])
+
+    def test_non_polymorphic_model_collection(self):
+        def update(obj, doc):
+            obj.violets = doc['violets'] = 'green'
+            doc['daft_poem'] = obj.silly_poetry()
+        self.do_test_on_thingies(self.boring_collection, BoringModel, update)
+
+    def test_non_polymorphic_model_collection_with_mixin_and_serializer(self):
+        def update(obj, doc):
+            obj.water = doc['water'] = 200
+            doc['total'] = obj.total
+        self.do_test_on_thingies(self.one_mixing_bowl_collection,
+                                 OneMixingBowl, update)
+
+    def test_non_polymorphic_model_collection_with_mixin_and_partial_serializer(self):
+        def update(obj, doc):
+            obj.water = doc['water'] = 200
+        self.do_test_on_thingies(self.another_mixing_bowl_collection,
+                                 AnotherMixingBowl, update)
+
+    # Can't do anything with AutomaticMixer, because it can't have a serializer
+    # created (see test_serializers)

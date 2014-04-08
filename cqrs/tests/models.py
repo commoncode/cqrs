@@ -1,9 +1,32 @@
 from django.db import models
-from ..models import CQRSPolymorphicModel
+from ..models import CQRSModel, CQRSPolymorphicModel
 
 
-# TODO: at present pretty much all the tests are for polymorphic classes.
-# We need non-polymorphic tests.
+def standard_model_test_methods():
+    '''
+    ... too lazy to write this line.
+
+    Ensure you define test_data yourself.
+
+    Usage: ``locals().update(standard_model_test_methods())``.
+    '''
+
+    def as_test_serialized(self):
+        return self.test_data(self)
+
+    @classmethod
+    def create_test_instance(cls):
+        return cls.objects.create(**cls.test_data())
+
+    return {'as_test_serialized': as_test_serialized,
+            'create_test_instance': create_test_instance}
+
+
+def maybe_add_id(model_instance, fields):
+    if model_instance:
+        fields['id'] = model_instance.id
+    return fields
+
 
 def make(prefix, base):
     '''
@@ -49,27 +72,17 @@ def make(prefix, base):
                                             type(model_instance).__name__)
         return fields
 
-    def as_test_serialized(self):
-        return self.test_data(self)
-
-    @classmethod
-    def create_test_instance(cls):
-        return cls.objects.create(**cls.test_data())
-
-    return type(base)(
-        'Model' + prefix.upper(),
-        (base,),
-        {
-            'field_{}1'.format(prefix): models.CharField(max_length=50),
-            'field_{}2'.format(prefix): models.CharField(max_length=50),
-            'calc_{}3'.format(prefix):
-            lambda self: 'from calc_{}3'.format(prefix),
-            'prefix': prefix,
-            'test_data': test_data,
-            'as_test_serialized': as_test_serialized,
-            'create_test_instance': create_test_instance,
-            '__module__': __name__,
-        })
+    attrs = {
+        'field_{}1'.format(prefix): models.CharField(max_length=50),
+        'field_{}2'.format(prefix): models.CharField(max_length=50),
+        'calc_{}3'.format(prefix):
+        lambda self: 'from calc_{}3'.format(prefix),
+        'prefix': prefix,
+        'test_data': test_data,
+        '__module__': __name__,
+    }
+    attrs.update(standard_model_test_methods())
+    return type(base)('Model' + prefix.upper(), (base,), attrs)
 
 
 # Naming scheme: ending with 'A' means the serializer for that class is
@@ -89,3 +102,103 @@ ModelMAM = make('mam', ModelMA)
 ModelMM = make('mm', ModelM)
 ModelMMA = make('mma', ModelMM)
 ModelMMM = make('mmm', ModelMM)
+
+
+# OK, that's enough polymorphic testing.
+
+class BoringModel(CQRSModel):
+    # This one has nothing distinctive about it. It's just "average".
+    # *Very* average. Especially its poetry.
+    roses = models.CharField(default='red', max_length=50)
+    violets = models.CharField(default='blue', max_length=50)
+
+    def silly_poetry(self):
+        return 'Roses are {},\n\
+                Violets are {},\n\
+                This pseudo-poem is generated\n\
+                With a little user input.'.format(self.roses, self.violets)
+
+    @classmethod
+    def test_data(cls, model_instance=None):
+        # Yeah, I wrote it this way on purpose, for the fun of it. Ugly, innit?
+        fields = maybe_add_id(model_instance, {
+            'violets': 'red',
+        })
+        fields.update({
+            'daft_poem': model_instance.silly_poetry(),
+        } if model_instance else {
+            'roses': 'blue',
+        })
+        return fields
+
+    locals().update(standard_model_test_methods())
+
+
+class DryIngredientsMixin(models.Model):
+    sugar = models.IntegerField()
+    flour = models.IntegerField()
+
+    class Meta:
+        abstract = True
+
+
+class OneMixingBowl(CQRSModel, DryIngredientsMixin):
+    # This one will get a serializer.
+    water = models.IntegerField()
+    oil = models.IntegerField()
+
+    @property
+    def total(self):
+        # Let's ignore absorption
+        return self.water + self.oil + self.sugar + self.flour
+
+    @classmethod
+    def test_data(cls, model_instance=None):
+        fields = maybe_add_id(model_instance, {
+            'water': 100,
+            'sugar': 1000,
+        })
+        if model_instance:  # Only include total when serializing
+            fields.update({
+                'total': model_instance.total,
+            })
+        else:  # Only include these fields when creating an instance
+            fields.update({
+                'oil': 10,
+                'flour': 1,
+            })
+        return fields
+
+    locals().update(standard_model_test_methods())
+
+
+class AnotherMixingBowl(CQRSModel, DryIngredientsMixin):
+    # This one will get a partially automatic serializer.
+    water = models.IntegerField()
+    oil = models.IntegerField()
+
+    @classmethod
+    def test_data(cls, model_instance=None):
+        # No serializer specified; all of the fields should be included.
+        return maybe_add_id(model_instance, {
+            'water': 100,
+            'oil': 10,
+            'sugar': 1000,
+            'flour': 1,
+        })
+
+    locals().update(standard_model_test_methods())
+
+
+class AutomaticMixer(CQRSModel, DryIngredientsMixin):
+    # This one will *not* get a serializer. And so it will refuse to work,
+    # because of the existence mixin.
+
+    @classmethod
+    def test_data(cls, model_instance=None):
+        return maybe_add_id(model_instance, {
+            'sugar': 1000,
+            'flour': 1,
+        })
+
+    locals().update(standard_model_test_methods())

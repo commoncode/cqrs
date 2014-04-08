@@ -6,7 +6,7 @@ from ..serializers import CQRSPolymorphicSerializer, CQRSSerializerMeta
 
 from .models import (ModelA, ModelAA, ModelAAA, ModelAAM, ModelAM, ModelAMA,
                      ModelAMM, ModelM, ModelMA, ModelMAA, ModelMAM, ModelMM,
-                     ModelMMA, ModelMMM)
+                     ModelMMA, ModelMMM, AutomaticMixer)
 from .serializers import (AAMSerializer, AMSerializer, AMMSerializer,
                           MSerializer, MAMSerializer, MMSerializer,
                           MMMSerializer)
@@ -62,6 +62,18 @@ def make_deserialize_test_method(model):
     new_test_method.__name__ = 'test_' + model.prefix + '_deserialize'
 
     return new_test_method
+
+
+class NonPolymorphicSerializersTestCase(TestCase):
+
+    # TODO: add tests for the rest of 'em
+    def test_class_structures(self):
+        with self.assertRaises(NotImplementedError) as r:
+            CQRSSerializerMeta._register[AutomaticMixer]
+        self.assertEqual(r.exception.message,
+                         "Sorry, 'AutomaticMixer' has a mix of CQRS and "
+                         "non-CQRS bases and we can't cope with that yet. "
+                         "(Hint: all bases should derive from CQRSModel.)")
 
 
 class PolymorphicSerializersTestCase(TestCase):

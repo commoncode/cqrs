@@ -1,6 +1,8 @@
-from ..collections import DRFPolymorphicDocumentCollection, SubCollection
+from ..collections import (DRFPolymorphicDocumentCollection,
+                           DRFDocumentCollection, SubCollection)
 
-from .models import ModelA, ModelM, ModelAM, ModelAMM, ModelMAM
+from .models import (ModelA, ModelM, ModelAM, ModelAMM, ModelMAM, BoringModel,
+                     OneMixingBowl, AnotherMixingBowl, AutomaticMixer)
 
 
 class ACollection(DRFPolymorphicDocumentCollection):
@@ -24,3 +26,19 @@ class AMMSubCollection(SubCollection):
 
 class MAMSubCollection(SubCollection):
     model = ModelMAM
+
+
+class BoringCollection(DRFDocumentCollection):
+    model = BoringModel
+
+
+class OneMixingBowlCollection(DRFDocumentCollection):
+    model = OneMixingBowl
+
+
+class AnotherMixingBowlCollection(DRFDocumentCollection):
+    model = AnotherMixingBowl
+
+
+class AutomaticMixerCollection(DRFDocumentCollection):
+    model = AutomaticMixer

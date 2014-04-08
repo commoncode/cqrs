@@ -1,9 +1,9 @@
-from rest_framework.fields import CharField
+from rest_framework.fields import CharField, IntegerField
 
-from ..serializers import CQRSPolymorphicSerializer
+from ..serializers import CQRSSerializer, CQRSPolymorphicSerializer
 
 from .models import (ModelAAM, ModelAM, ModelAMM, ModelM, ModelMAM, ModelMM,
-                     ModelMMM)
+                     ModelMMM, BoringModel, OneMixingBowl, AnotherMixingBowl)
 
 
 def make_serializer(model):
@@ -56,3 +56,29 @@ MSerializer = make_serializer(ModelM)
 MAMSerializer = make_serializer(ModelMAM)
 MMSerializer = make_serializer(ModelMM)
 MMMSerializer = make_serializer(ModelMMM)
+
+
+# OK, that's enough polymorphic testing.
+
+class BoringSerializer(CQRSSerializer):
+    daft_poem = CharField(source='silly_poetry', max_length=500,
+                          read_only=True)
+
+    class Meta:
+        model = BoringModel
+        fields = 'violets',
+
+
+class OneMixingBowlSerializer(CQRSSerializer):
+    total = IntegerField(read_only=True)
+
+    class Meta:
+        model = OneMixingBowl
+        fields = 'sugar', 'water'  # NOT 'flour' (from the mixin) or 'oil'
+
+
+class AnotherMixingBowlSerializer(CQRSSerializer):
+
+    class Meta:
+        model = AnotherMixingBowl
+        # fields explicitly omitted. Everything should be included.
