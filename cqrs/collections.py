@@ -101,6 +101,11 @@ class DRFDocumentCollection(DRFDocumentCollectionBase):
     _required_model_base = CQRSModel
     _required_not_model_base = CQRSPolymorphicModel
 
+    def collection_or_subcollection_for(self, model):
+        # If non-polymorphic, I don't have a subcollection, do I?
+        assert self.serializer_class.Meta.model is model
+        return self
+
     def dump_obj(self, model, obj, path):
         """Use Django REST framework to serialize our object."""
         return self.serializer_class(obj).data
@@ -151,19 +156,27 @@ class DRFPolymorphicDocumentCollection(DRFDocumentCollectionBase):
             model_info.update(subcollection.get_related_models())
         return model_info
 
+    def collection_or_subcollection_for(self, model_class):
+        """
+        Get this collection (``self``), or an instance of the appropriate
+        subcollection, for the specified model class.
+        """
+
+        if self.serializer_class.Meta.model is model_class:
+            return self
+        else:
+            subcollection = SubCollectionMeta._register.instances[model_class]
+            subcollection.base_collection = weakref.proxy(self)
+            return subcollection
+
     def dump_obj(self, model, obj, path):
         """Use Django REST framework to serialize our object."""
 
-        if self.serializer_class.Meta.model is self.model:
-            # One of two situations:
-            # (a) This is the root collection (probably not a SubCollection
-            #     subclass either, so we'd better not do the lookup!), or
-            # (b) lookup has already been done and this is a subcollection.
-            return self.serializer_class(obj).data
-
-        subcollection = SubCollectionMeta._register.instances[type(obj)]
-        subcollection.base_collection = weakref.proxy(self)
-        return subcollection.dump_obj(model, obj, path)
+        collection = self.collection_or_subcollection_for(type(obj))
+        if collection is self:
+            return collection.serializer_class(obj).data
+        else:
+            return collection.dump_obj(model, obj, path)
 
 
 class SubCollectionMeta(DRFDocumentCollectionMeta, RegisterableMeta):
