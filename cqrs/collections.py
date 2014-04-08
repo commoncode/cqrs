@@ -1,6 +1,5 @@
 import weakref
 
-from django.utils.module_loading import import_by_path
 from django.utils import six
 
 from denormalize.models import DocumentCollection
@@ -90,16 +89,6 @@ class DRFDocumentCollectionBase(six.with_metaclass(DRFDocumentCollectionMeta,
     def serializer_class(self):
         return CQRSSerializerMeta._register[self.model]
 
-    def concreteify_serializer_class(self):
-        """Eww, bad name. Resolve self.serializer_class if necessary."""
-        if isinstance(self.serializer_class, str):
-            self.serializer_class = import_by_path(self.serializer_class)
-
-    # Parent DRFDocumentCollection (for saving child objects).
-    # TODO(Chris): nuke this and in mongo, for never in all git history was it
-    # set.
-    parent_collection = None
-
 
 class DRFDocumentCollection(DRFDocumentCollectionBase):
     """
@@ -114,7 +103,6 @@ class DRFDocumentCollection(DRFDocumentCollectionBase):
 
     def dump_obj(self, model, obj, path):
         """Use Django REST framework to serialize our object."""
-        self.concreteify_serializer_class()
         return self.serializer_class(obj).data
 
 
@@ -165,7 +153,6 @@ class DRFPolymorphicDocumentCollection(DRFDocumentCollectionBase):
 
     def dump_obj(self, model, obj, path):
         """Use Django REST framework to serialize our object."""
-        self.concreteify_serializer_class()
 
         if self.serializer_class.Meta.model is self.model:
             # One of two situations:
