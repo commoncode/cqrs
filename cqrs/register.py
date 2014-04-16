@@ -13,7 +13,7 @@ import weakref
 
 from django.core.exceptions import ImproperlyConfigured
 
-from .base import CQRSModelMixin
+from .models import CQRSModel
 
 
 class InstanceRegister(object):
@@ -64,7 +64,7 @@ class Register(object):
             raise ValueError("{} is not a {} for {}"
                              .format(value, self.value_type.__name__, model))
 
-        if CQRSModelMixin not in model.__mro__:
+        if CQRSModel not in model.__mro__:
             # We're too good for duck typing here.
             raise TypeError("Can't register {}.{}: its model {}.{} is not CQRS"
                             .format(value.__module__, value.__name__,
@@ -72,11 +72,11 @@ class Register(object):
         if model in self._register:
             raise ImproperlyConfigured(
                 "There is already a {} for {}"
-                .format(self.value_type.__name__, value.Meta.model))
+                .format(self.value_type.__name__, model))
         self._register[model] = value
 
     def __getitem__(self, model):
-        if CQRSModelMixin not in model.__mro__:
+        if CQRSModel not in model.__mro__:
             # We're too good for duck typing here.
             raise TypeError("Model {}.{} is not CQRS, can't be in register"
                             .format(model.__module__, model.__name__))
@@ -97,11 +97,11 @@ class RegisterableMeta(type):
     See `SerializerRegisterMeta` for an example of the configuration that must
     be done.
     """
-    def __init__(self, *args, **kwargs):
-        super(RegisterableMeta, self).__init__(*args, **kwargs)
+    def __init__(cls, *args, **kwargs):
+        super(RegisterableMeta, cls).__init__(*args, **kwargs)
 
         # TODO: we probably need to check fields at this point.
         # TODO: what about subclasses of the serializer?
-        model = self._model_for_registrar
+        model = cls._model_for_registrar
         if model is not None:
-            type(self)._register[model] = self
+            type(cls)._register[model] = cls

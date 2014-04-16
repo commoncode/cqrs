@@ -14,9 +14,6 @@ To take advantage of CQRS functionality, your models should extend
 :class:`~cqrs.models.CQRSModel` and your serializers
 :class:`~cqrs.serializers.CQRSSerializer`.
 
-:class:`~cqrs.models.CQRSModel` adds a ``mongoID`` field, which
-:class:`~cqrs.serializers.CQRSSerializer` also includes.
-
 If you have a polymorphic model, you should use
 :class:`~cqrs.models.CQRSPolymorphicModel` and
 :class:`~cqrs.serializers.CQRSPolymorphicSerializer` for your model and
@@ -55,7 +52,6 @@ It's time for some ASCII art. Well, Unicode art seeing as I didn't use ``+``,
     │ CQRSPolymorphicModel │
     ├──────────────────────┤
     │ id                   │
-    │ mongoID              │
     └──────────────────────┘
                ^
                |
@@ -146,7 +142,6 @@ parents' Meta.fields added to it::
                   │ CQRSPolymorphicSerializer │
                   ├───────────────────────────┤
                   │ id                        │
-                  │ mongoID                   │
                   └───────────────────────────┘
                                ^
                                |
@@ -175,27 +170,27 @@ Expressed in code, it is approximately::
 
     class ProductSerializer(CQRSPolymorphicSerializer):
         class Meta:
-            fields = 'id', 'mongoID', 'price'
+            fields = 'id', 'price'
 
 
     class BookAutoCQRSSerializer(ProductSerializer):
         class Meta:
-            fields = 'id', 'mongoID', 'price', 'isbn'
+            fields = 'id', 'price', 'isbn'
 
 
     class URLSerializer(ProductSerializer):
         class Meta:
-            fields = 'id', 'mongoID', 'price', 'url'
+            fields = 'id', 'price', 'url'
 
 
     class BookAutoCQRSSerializer(ProductSerializer):
         class Meta:
-            fields = 'id', 'mongoID', 'price', 'isbn'
+            fields = 'id', 'price', 'isbn'
 
 
     class EBookAutoCQRSSerializer(BookAutoCQRSSerializer, URLSerializer):
         class Meta:
-            fields = 'id', 'mongoID', 'price', 'isbn', 'url'
+            fields = 'id', 'price', 'isbn', 'url'
 
 Now on to the things to note:
 

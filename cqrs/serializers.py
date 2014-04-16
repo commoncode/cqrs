@@ -10,7 +10,6 @@ from django.utils.module_loading import import_by_path
 from rest_framework import serializers
 from rest_framework.fields import Field, CharField
 
-from .base import CQRSModelMixin
 from .models import CQRSModel, CQRSPolymorphicModel
 from .register import Register, RegisterableMeta
 
@@ -62,7 +61,12 @@ class CQRSSerializerMeta(serializers.SerializerMetaclass, RegisterableMeta):
         # - Meta.fields exists and is a list
         if not hasattr(meta, 'fields'):
             meta.fields = []
-        elif not isinstance(meta.fields, list):
+        else:
+            # We *must* make a clone of it like this, or if it was inherited,
+            # Very Bad Things will happen (e.g. I had a bug where
+            # ``CQRSPolymorphicSerializer.Meta.fields is
+            # CQRSSerializer.Meta.fields``, so it included ``'type'``, so using
+            # CQRSSerializer directly was broken. That was a bad idea.
             meta.fields = list(meta.fields)
 
         # This, then, is the canonical list, to which we must add all fields
@@ -96,6 +100,8 @@ class CQRSSerializerMeta(serializers.SerializerMetaclass, RegisterableMeta):
         # And just for a change, let's care about order. I don't know quite why
         # I'm doing this, really...
         for base in bases[::-1]:
+            if base == serializers.ModelSerializer:  # name == 'NewBase'
+                continue
             for field in base.Meta.fields[::-1]:
                 prepend_field(field)
 
@@ -109,20 +115,15 @@ class CQRSSerializerMeta(serializers.SerializerMetaclass, RegisterableMeta):
         return super(CQRSSerializerMeta, cls).__new__(cls, name, bases, attrs)
 
 
-class CQRSSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = CQRSModel
-        fields = 'id', 'mongoID'
-
-
 class SerializerRegister(Register):
 
-    value_type = CQRSSerializer
+    value_type = None  # defined below. Yeah, this is a really unpleasant
+                       # three-way circular dependency :-(
 
     def is_valid_for(self, model, serializer):
         return model is serializer.Meta.model or \
-            serializer is CQRSPolymorphicSerializer
+            serializer is CQRSPolymorphicSerializer# or \
+            #serializer is CQRSSerializer
 
     def create_value_for(self, model_class):
         # Here we have the fun of constructing a serializer for a subclass.
@@ -146,9 +147,9 @@ class SerializerRegister(Register):
         # serializers also.
         model_bases = model_class.__bases__
 
-        is_root = model_class is CQRSModelMixin
+        is_root = model_class is CQRSModel
 
-        if not is_root and not all(issubclass(b, CQRSModelMixin)
+        if not is_root and not all(issubclass(b, CQRSModel)
                                    for b in model_bases):
             # There's nothing fundamentally wrong with this case, but it's
             # simpler to deny its existence for the moment. When it turns out
@@ -156,7 +157,7 @@ class SerializerRegister(Register):
             raise NotImplementedError(
                 "Sorry, {!r} has a mix of CQRS and non-CQRS bases and we can't"
                 " cope with that yet. "
-                "(Hint: all bases should derive from CQRSModelMixin.)"
+                "(Hint: all bases should derive from CQRSModel.)"
                 .format(model_class.__name__))
 
         # As far as I care at present, if it's the root it has no base classes
@@ -238,7 +239,7 @@ class SerializerRegister(Register):
         for base in model_class.__bases__:
             # I know I said we don't cope with the mixed support issue, but
             # here it's easy to demonstrate what will need to be done...
-            if issubclass(base, CQRSModelMixin):
+            if issubclass(base, CQRSModel):
                 # Any fields that were present in a base CQRS class, we
                 # naturally don't want to add.
                 fields_to_add -= set(base._meta.get_all_field_names())
@@ -262,8 +263,17 @@ class SerializerRegister(Register):
 CQRSSerializerMeta._register = SerializerRegister()
 
 
-class CQRSPolymorphicSerializer(six.with_metaclass(CQRSSerializerMeta,
-                                                   CQRSSerializer)):
+class CQRSSerializer(six.with_metaclass(CQRSSerializerMeta,
+                                        serializers.ModelSerializer)):
+
+    class Meta(object):
+        model = CQRSModel
+        fields = 'id',
+
+SerializerRegister.value_type = CQRSSerializer
+
+
+class CQRSPolymorphicSerializer(CQRSSerializer):
     '''
     Serializer for Polymorphic Model
     '''
@@ -280,7 +290,7 @@ class CQRSPolymorphicSerializer(six.with_metaclass(CQRSSerializerMeta,
 
     type = CharField(source='_type_path', read_only=True)
 
-    class Meta:
+    class Meta(CQRSSerializer.Meta):
         model = CQRSPolymorphicModel
 
     def to_native(self, obj):
