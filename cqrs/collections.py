@@ -1,7 +1,5 @@
 import weakref
 
-from django.utils import six
-
 from denormalize.models import DocumentCollection
 
 from .register import Register, RegisterableMeta
@@ -9,7 +7,7 @@ from .serializers import CQRSSerializerMeta
 from .models import CQRSModel, CQRSPolymorphicModel
 
 
-class DRFDocumentCollectionMeta(type):
+class DRFDocumentCollectionBaseMeta(type):
     '''
     A document collection metaclass, enforcing appropriate model subclassing.
 
@@ -36,7 +34,7 @@ class DRFDocumentCollectionMeta(type):
         # have a model.
         model_expected = cls.model is not None or cls.__name__ not in (
             'DRFDocumentCollectionBase', 'DRFDocumentCollection',
-            'DRFPolymorphicDocumentCollection', 'SubCollection', 'NewBase')
+            'DRFPolymorphicDocumentCollection', 'SubCollection')
 
         if model_expected:
             if cls.model is None:
@@ -57,11 +55,10 @@ class DRFDocumentCollectionMeta(type):
                     .format(cls.__name__, cls.model.__name__,
                             cls._required_model_base.__name__))
 
-        super(DRFDocumentCollectionMeta, cls).__init__(*args, **kwargs)
+        super(DRFDocumentCollectionBaseMeta, cls).__init__(*args, **kwargs)
 
 
-class DRFDocumentCollectionBase(six.with_metaclass(DRFDocumentCollectionMeta,
-                                                   DocumentCollection)):
+class DRFDocumentCollectionBase(DocumentCollection):
     """
     A document collection making use of Django REST framework serializers for
     serializing our objects. This provides more power in what data we want to
@@ -69,6 +66,7 @@ class DRFDocumentCollectionBase(six.with_metaclass(DRFDocumentCollectionMeta,
 
     This class is abstract.
     """
+    __metaclass__ = DRFDocumentCollectionBaseMeta
     _required_model_base = None
     _required_not_model_base = None
 
@@ -90,6 +88,20 @@ class DRFDocumentCollectionBase(six.with_metaclass(DRFDocumentCollectionMeta,
         return CQRSSerializerMeta._register[self.model]
 
 
+class DRFDocumentCollectionMeta(DRFDocumentCollectionBaseMeta,
+                                RegisterableMeta):
+    """
+    Metaclass for DRF document collections, taking care of registration.
+    """
+
+    # _register = DocumentCollectionRegister()
+    # (defined at the end of the file as it's cyclic)
+
+    @property
+    def _model_for_registrar(cls):
+        return getattr(cls, 'model', None)
+
+
 class DRFDocumentCollection(DRFDocumentCollectionBase):
     """
     A non-polymorphic, Django REST framework-based document collection.
@@ -98,17 +110,48 @@ class DRFDocumentCollection(DRFDocumentCollectionBase):
     :class:`DRFPolymorphicDocumentCollection` instead.
     """
 
+    __metaclass__ = DRFDocumentCollectionMeta
     _required_model_base = CQRSModel
     _required_not_model_base = CQRSPolymorphicModel
-
-    def collection_or_subcollection_for(self, model):
-        # If non-polymorphic, I don't have a subcollection, do I?
-        assert self.serializer_class.Meta.model is model
-        return self
 
     def dump_obj(self, model, obj, path):
         """Use Django REST framework to serialize our object."""
         return self.serializer_class(obj).data
+
+
+class DocumentCollectionRegister(Register):
+    """
+    A registry of document collections.
+
+    Please, please remember with this that unlike the serializers, where
+    everything is registered, with this only the *subcollections* are
+    to be registered here. The root collections are *not* registered here; they
+    get registered in a different way (and manually, at that) in the
+    django-denormalize backend.
+    """
+
+    value_type = DRFDocumentCollection
+
+    @staticmethod
+    def is_valid_for(model_class, collection_class):
+        return model_class is collection_class.model
+
+    def create_value_for(self, model_class):
+        class NewCollection(DRFDocumentCollection):
+            model = model_class
+            serializer_class = CQRSSerializerMeta._register[model_class]
+
+        NewCollection.__name__ = '{}AutoDRFDocumentCollection'.format(
+            model_class.__name__)
+        # Changing __module__ might be a little dubious, but I'll do it anyway.
+        NewCollection.__module__ = model_class.__module__
+        NewCollection.__doc__ = (
+            'Automatically generated DRF document collection for {}.'
+            .format(model_class.__name__))
+        return NewCollection
+
+
+DRFDocumentCollectionMeta._register = DocumentCollectionRegister()
 
 
 class DRFPolymorphicDocumentCollection(DRFDocumentCollectionBase):
@@ -192,8 +235,7 @@ class SubCollectionMeta(DRFDocumentCollectionMeta, RegisterableMeta):
         return getattr(cls, 'model', None)
 
 
-class SubCollection(six.with_metaclass(SubCollectionMeta,
-                                       DRFDocumentCollection)):
+class SubCollection(DRFDocumentCollectionBase):
     """
     A partial, non-polymorphic document collection for children of polymorphic
     models; each child of a polymorphic model can have one of these, or one
@@ -205,6 +247,8 @@ class SubCollection(six.with_metaclass(SubCollectionMeta,
     to the polymorphic collection, but may not work correctly. We haven't tried
     them at all. So be careful.
     """
+
+    __metaclass__ = SubCollectionMeta
 
     def __init__(self):
         if self.model is None:
@@ -251,8 +295,16 @@ class SubCollection(six.with_metaclass(SubCollectionMeta,
                                   "doesn't know its base collection"
                                   .format(type(self).__name__))
 
+    def dump_obj(self, model, obj, path):
+        """Use Django REST framework to serialize our object."""
+        return self.serializer_class(obj).data
+
+    def collection_or_subcollection_for(self, model):
+        # If non-polymorphic, I don't have a subcollection, do I?
+        assert self.serializer_class.Meta.model is model
+        return self
+
     _required_model_base = CQRSPolymorphicModel
-    _required_not_model_base = None
 
 
 class SubCollectionRegister(Register):
