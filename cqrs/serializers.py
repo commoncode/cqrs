@@ -102,6 +102,13 @@ class CQRSSerializerMeta(serializers.SerializerMetaclass, RegisterableMeta):
                 ' (You tried to make serializer {!r} for {!r}.)'
                 .format(cls.__name__, cls.Meta.model.__name__))
 
+        # We also want to ensure that the inheritance is right (this is most
+        # important for polymorphic vs. non-polymorphic)
+        expected_base = type(cls)._register[cqrs_base(cls.Meta.model)]
+        assert expected_base in cls.__bases__, \
+            "Expected {!r} to be in {!r}'s bases, but found {!r}".format(
+                expected_base, cls, cls.__bases__)
+
 
 class SerializerRegister(Register):
 
