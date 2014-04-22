@@ -84,23 +84,20 @@ class CQRSSerializerMeta(serializers.SerializerMetaclass, RegisterableMeta):
             # It's CQRSSerializer or CQRSPolymorphicSerializer
             return
 
-        if cls.Meta.model._meta.proxy:
-            # Yeah, I don't see any point in allowing this. It undermines
-            # certain assumptions, whether it would work or not.
-            raise AssertionError('CQRS serializer for proxy model? Verboten!')
+        # Yeah, I don't see any point in allowing this. It undermines
+        # certain assumptions, whether it would work or not.
+        assert not cls.Meta.model._meta.proxy, \
+            'CQRS serializer for proxy model? Verboten!'
 
-        if cls.Meta.model._meta.abstract:
-            # Not to say that we can't theoretically have serializers for them,
-            # but for the present, it's no go, because for abstract classes
-            # ModelSerializer.get_default_fields blows up because pk_field
-            # becomes None. If we make it so that it *does* work, we'll
-            # probably need to rethink some other things, especially to do with
-            # CQRS mixins.
-
-            raise AssertionError(
-                'Cannot create serializer for abstract or proxy models.'
-                ' (You tried to make serializer {!r} for {!r}.)'
-                .format(cls.__name__, cls.Meta.model.__name__))
+        # Not to say that we can't theoretically have serializers for them, but
+        # for the present, it's no go, because for abstract classes
+        # ModelSerializer.get_default_fields blows up because pk_field becomes
+        # None. If we make it so that it *does* work, we'll probably need to
+        # rethink some other things, especially to do with CQRS mixins.
+        assert not cls.Meta.model._meta.abstract, (
+            'Cannot create serializer for abstract or proxy models.'
+            ' (You tried to make serializer {!r} for {!r}.)'
+            .format(cls.__name__, cls.Meta.model.__name__))
 
         # We also want to ensure that the inheritance is right (this is most
         # important for polymorphic vs. non-polymorphic)
