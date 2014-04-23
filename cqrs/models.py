@@ -1,5 +1,6 @@
 from django.db import models
 from polymorphic.polymorphic_model import PolymorphicModel
+from django.utils.module_loading import import_by_path
 
 
 class CQRSModel(models.Model):
@@ -11,6 +12,18 @@ class CQRSModel(models.Model):
 
 class CQRSPolymorphicModel(CQRSModel, PolymorphicModel):
     """A polymorphic CQRS model."""
+
+    @classmethod
+    def _model_class_from_type_path(self, type_path):
+        '''
+        Get a model class from a type path as emitted by _type_path.
+
+        This is used by the serializer.
+
+        :raises: :exc:`django.core.exceptions.ImproperlyConfigured` or
+                 :exc:`TypeError`, for illegal type paths.
+        '''
+        return import_by_path(type_path)
 
     @property
     def _type_path(self):

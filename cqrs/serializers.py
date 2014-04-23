@@ -5,7 +5,6 @@ See :mod:`cqrs` docs for a full explanation.
 '''
 
 from django.core.exceptions import ImproperlyConfigured
-from django.utils.module_loading import import_by_path
 from rest_framework import serializers
 from rest_framework.fields import CharField
 
@@ -299,7 +298,7 @@ class CQRSPolymorphicSerializer(CQRSSerializer):
             return
 
         try:
-            model_class = import_by_path(data['type'])
+            model_class = self.opts.model._model_class_from_type_path(data['type'])
             # Now get the correct serializer for that model class.
             serializer = CQRSSerializerMeta._register.instances[model_class]
         except (ImproperlyConfigured, TypeError):
