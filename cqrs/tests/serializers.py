@@ -29,7 +29,8 @@ def make_serializer(model):
 
     class Meta:
         model = model_
-        fields = 'field_{}1'.format(model.prefix),
+        fields = ('field_{}1'.format(model.prefix),
+                  'manual_{}3'.format(model.prefix))
 
     # Hey! You see that CQRSPolymorphicSerializer base? **It is a lie.**
     # CQRSSerializerMeta substitutes in its place the model base's serializer,
@@ -66,7 +67,7 @@ class BoringSerializer(CQRSSerializer):
 
     class Meta:
         model = BoringModel
-        fields = 'violets',
+        fields = 'violets', 'daft_poem'
 
 
 class OneMixingBowlSerializer(CQRSSerializer):
@@ -74,7 +75,8 @@ class OneMixingBowlSerializer(CQRSSerializer):
 
     class Meta:
         model = OneMixingBowl
-        fields = 'sugar', 'water'  # NOT 'flour' (from the mixin) or 'oil'
+        fields = 'sugar', 'water', 'total'
+        # NOT 'flour' (from the mixin) or 'oil'
 
 
 class AnotherMixingBowlSerializer(CQRSSerializer):

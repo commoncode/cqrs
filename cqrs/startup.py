@@ -20,4 +20,7 @@ def autoload(submodules):
 
 
 def run():
-    autoload(["collections"])
+    # 'serializers' to ensure that we don't go automatically deriving
+    # serializers just because someone forgot to import the manually specified
+    # serializer
+    autoload(('collections', 'serializers'))
