@@ -108,7 +108,10 @@ class DRFDocumentCollection(DRFDocumentCollectionBase):
 
     def dump_obj(self, model, obj, path):
         """Use Django REST framework to serialize our object."""
-        return self.serializer_class(obj).data
+
+        data = self.serializer_class(obj).data
+        data['collection_name'] = self.name
+        return data
 
 
 class DRFPolymorphicDocumentCollection(DRFDocumentCollectionBase):
