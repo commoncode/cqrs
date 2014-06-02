@@ -306,5 +306,10 @@ class CQRSPolymorphicSerializer(CQRSSerializer):
 
         # Now we can defer to that serializer's from_native. And tell ourselves
         # that the polymorphism is resolved to make sure we don't recurse.
-        return serializer.from_native(data=data, files=files,
-                                      polymorphism_resolved=True)
+        out = serializer.from_native(data=data, files=files,
+                                     polymorphism_resolved=True)
+        # We must make sure to copy these things across, since we've cheated by
+        # using a different serializer...
+        self._errors = serializer._errors
+        self.object = serializer.object
+        return out
