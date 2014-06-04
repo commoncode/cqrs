@@ -162,6 +162,8 @@ class CQRSSerializer(serializers.ModelSerializer):
 
     _options_class = CQRSModelSerializerOptions
 
+    type = CharField(source='__class__.__name__', read_only=True)
+
     def get_default_fields(self):
         """
         Return the PARTIAL set of default fields for the object, as a dict.
