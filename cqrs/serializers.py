@@ -285,8 +285,15 @@ class CQRSPolymorphicSerializer(CQRSSerializer):
 
         if polymorphism_resolved:
             # We've got the right serializer, so now we can continue normally.
-            return super(CQRSPolymorphicSerializer, self).from_native(data,
-                                                                      files)
+
+            # We must make sure to copy these things across, since we've cheated by
+            # using a different serializer...
+
+            out = super(CQRSPolymorphicSerializer, self).from_native(data, files)
+            # self.object = self.serializer.object
+            # self._errors = self.serializer._errors
+
+            return out
 
         # The ``type`` field is a magic one, because we need it to determine
         # which *serializer* to use. It obviously can't be done with a regular
@@ -312,14 +319,11 @@ class CQRSPolymorphicSerializer(CQRSSerializer):
         # Now we can defer to that serializer's from_native. And tell ourselves
         # that the polymorphism is resolved to make sure we don't recurse.
         out = serializer.from_native(data=data, files=files,
-                                     polymorphism_resolved=True)
+                                      polymorphism_resolved=True)
 
-        # We must make sure to copy these things across, since we've cheated by
-        # using a different serializer...
         self.object = serializer.object
-
-        # commenting this out because it seems to proper errors that are too stringent
-        # or just plain incorrect.
         # self._errors = serializer._errors
-
+        self.serializer = serializer
         return out
+
+
